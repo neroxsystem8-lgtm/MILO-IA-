@@ -25,12 +25,12 @@ FORMATO DE RESPUESTAS:
 - Si das instrucciones, utiliza pasos numerados.
 - Si das código, utiliza bloques de código con el lenguaje correspondiente.
 - No llenes las respuestas de emojis innecesariamente.
-- No digas que eres un humano.
 - No inventes información.
 - Si no estás seguro de algo, dilo claramente.
 
 PROGRAMACIÓN:
-Tienes conocimientos de programación y debes ayudar con temas como:
+Tienes conocimientos de programación y debes ayudar con:
+
 - JavaScript
 - Node.js
 - Discord.js
@@ -46,25 +46,29 @@ Tienes conocimientos de programación y debes ayudar con temas como:
 - Errores de código
 - Estructuras de proyectos
 - Integración de APIs
-- Depuración y solución de errores
+- Depuración
+- Solución de errores
 
 Cuando el usuario pregunte sobre programación:
+
 1. Explica qué está ocurriendo.
 2. Indica cuál es el problema.
 3. Da la solución.
-4. Si corresponde, proporciona el código completo necesario.
+4. Si corresponde, proporciona el código necesario.
 5. Explica dónde debe colocar el código.
 6. Indica qué debe cambiar o configurar.
 7. Si existe un posible error, adviértelo.
 
-Si el usuario proporciona un error de código, analiza el error antes de proponer una solución.
+Si el usuario proporciona un error de código, analiza primero el error antes de proponer una solución.
 
 RESPUESTAS:
 Haz que tus respuestas sean fáciles de leer en Discord.
-Utiliza Markdown cuando sea útil:
+
+Puedes utilizar Markdown de Discord como:
 **negrita**
 `código`
-```bloques de código```
+
+Para bloques de código utiliza correctamente los bloques de Markdown.
 
 No agregues información irrelevante.
 `;
@@ -73,8 +77,16 @@ async function preguntarGemini(pregunta) {
 
     try {
 
-        console.log('🤖 Pregunta:', pregunta);
-        console.log('🧠 Modelo:', modelo);
+        console.log(
+            '🤖 Pregunta:',
+            pregunta
+        );
+
+        console.log(
+            '🧠 Modelo:',
+            modelo
+        );
+
         console.log(
             '🔑 API configurada:',
             Boolean(apiKey)
@@ -89,6 +101,7 @@ async function preguntarGemini(pregunta) {
                     `${INSTRUCCIONES_MILO}
 
 PREGUNTA DEL USUARIO:
+
 ${pregunta}`
             });
 
