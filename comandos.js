@@ -8,12 +8,12 @@ const ROL_GLOBAL = '1553526636547280967';
 const comandos = [
 
     // ==========================================
-    // IA
+    // 🤖 INTELIGENCIA ARTIFICIAL
     // ==========================================
 
     new SlashCommandBuilder()
         .setName('ia')
-        .setDescription('Habla con Milo mediante Gemini')
+        .setDescription('Habla con Milo mediante inteligencia artificial')
         .addStringOption(option =>
             option
                 .setName('pregunta')
@@ -40,23 +40,46 @@ const comandos = [
         .setDescription('Reinicia tu conversación con Milo'),
 
     // ==========================================
-    // INFORMACIÓN
+    // 🖼️ IMÁGENES
     // ==========================================
 
     new SlashCommandBuilder()
-        .setName('ayuda')
-        .setDescription('Muestra la ayuda de Milo'),
-
-    new SlashCommandBuilder()
-        .setName('estado')
-        .setDescription('Muestra el estado de Milo'),
-
-    new SlashCommandBuilder()
-        .setName('modelo')
-        .setDescription('Muestra el modelo de IA utilizado'),
+        .setName('imagen')
+        .setDescription('Genera una imagen mediante inteligencia artificial')
+        .addStringOption(option =>
+            option
+                .setName('prompt')
+                .setDescription('Describe la imagen que quieres generar')
+                .setRequired(true)
+        ),
 
     // ==========================================
-    // BAN GLOBAL
+    // 🌐 IDIOMAS
+    // ==========================================
+
+    new SlashCommandBuilder()
+        .setName('idioma')
+        .setDescription('Configura el idioma de respuesta de Milo')
+        .addStringOption(option =>
+            option
+                .setName('idioma')
+                .setDescription('Idioma que quieres utilizar')
+                .setRequired(true)
+                .addChoices(
+                    { name: '🇪🇸 Español', value: 'es' },
+                    { name: '🇺🇸 Inglés', value: 'en' },
+                    { name: '🇧🇷 Portugués', value: 'pt' },
+                    { name: '🇫🇷 Francés', value: 'fr' },
+                    { name: '🇩🇪 Alemán', value: 'de' },
+                    { name: '🇮🇹 Italiano', value: 'it' },
+                    { name: '🇯🇵 Japonés', value: 'ja' },
+                    { name: '🇰🇷 Coreano', value: 'ko' },
+                    { name: '🇨🇳 Chino', value: 'zh' }
+                )
+        ),
+
+    // ==========================================
+    // 🛡️ MODERACIÓN GLOBAL
     // ==========================================
 
     new SlashCommandBuilder()
@@ -77,7 +100,7 @@ const comandos = [
         .addStringOption(option =>
             option
                 .setName('tiempo')
-                .setDescription('Duración: permanente, 1h, 1d, 7d, 30d, etc.')
+                .setDescription('permanente, 1h, 1d, 7d, 30d, etc.')
                 .setRequired(true)
         )
         .addAttachmentOption(option =>
@@ -86,10 +109,6 @@ const comandos = [
                 .setDescription('Captura o evidencia del motivo')
                 .setRequired(false)
         ),
-
-    // ==========================================
-    // UNBAN GLOBAL
-    // ==========================================
 
     new SlashCommandBuilder()
         .setName('unban-global')
@@ -111,22 +130,142 @@ const comandos = [
                 .setName('prueba')
                 .setDescription('Captura o evidencia')
                 .setRequired(false)
+        ),
+
+    // ==========================================
+    // 📊 INFORMACIÓN
+    // ==========================================
+
+    new SlashCommandBuilder()
+        .setName('ayuda')
+        .setDescription('Muestra el centro de ayuda de Milo'),
+
+    new SlashCommandBuilder()
+        .setName('estado')
+        .setDescription('Muestra el estado de Milo'),
+
+    new SlashCommandBuilder()
+        .setName('modelo')
+        .setDescription('Muestra el modelo de inteligencia artificial'),
+
+    new SlashCommandBuilder()
+        .setName('servidor')
+        .setDescription('Muestra información del servidor'),
+
+    new SlashCommandBuilder()
+        .setName('usuario')
+        .setDescription('Muestra información de un usuario')
+        .addUserOption(option =>
+            option
+                .setName('usuario')
+                .setDescription('Usuario que quieres consultar')
+                .setRequired(false)
+        ),
+
+    new SlashCommandBuilder()
+        .setName('avatar')
+        .setDescription('Muestra el avatar de un usuario')
+        .addUserOption(option =>
+            option
+                .setName('usuario')
+                .setDescription('Usuario cuyo avatar quieres ver')
+                .setRequired(false)
+        ),
+
+    new SlashCommandBuilder()
+        .setName('ping')
+        .setDescription('Muestra la latencia de Milo'),
+
+    // ==========================================
+    // 🔧 UTILIDADES
+    // ==========================================
+
+    new SlashCommandBuilder()
+        .setName('calcular')
+        .setDescription('Realiza una operación matemática')
+        .addStringOption(option =>
+            option
+                .setName('operacion')
+                .setDescription('Ejemplo: 20 + 20 * 2')
+                .setRequired(true)
+        ),
+
+    new SlashCommandBuilder()
+        .setName('traducir')
+        .setDescription('Traduce un texto')
+        .addStringOption(option =>
+            option
+                .setName('texto')
+                .setDescription('Texto que quieres traducir')
+                .setRequired(true)
         )
+        .addStringOption(option =>
+            option
+                .setName('idioma')
+                .setDescription('Idioma al que quieres traducir')
+                .setRequired(true)
+        ),
+
+    new SlashCommandBuilder()
+        .setName('resumir')
+        .setDescription('Resume un texto')
+        .addStringOption(option =>
+            option
+                .setName('texto')
+                .setDescription('Texto que quieres resumir')
+                .setRequired(true)
+        ),
+
+    new SlashCommandBuilder()
+        .setName('hora')
+        .setDescription('Consulta la hora de una zona')
+        .addStringOption(option =>
+            option
+                .setName('zona')
+                .setDescription('Ejemplo: America/Bogota')
+                .setRequired(true)
+        ),
+
+    new SlashCommandBuilder()
+        .setName('convertir')
+        .setDescription('Convierte unidades')
+        .addStringOption(option =>
+            option
+                .setName('valor')
+                .setDescription('Ejemplo: 10 km')
+                .setRequired(true)
+        )
+        .addStringOption(option =>
+            option
+                .setName('a')
+                .setDescription('Unidad de destino')
+                .setRequired(true)
+        ),
+
+    // ==========================================
+    // 👑 MILO
+    // ==========================================
+
+    new SlashCommandBuilder()
+        .setName('soporte')
+        .setDescription('Muestra el servidor oficial de soporte'),
+
+    new SlashCommandBuilder()
+        .setName('invitar')
+        .setDescription('Muestra el enlace para invitar a Milo'),
+
+    new SlashCommandBuilder()
+        .setName('estadisticas')
+        .setDescription('Muestra las estadísticas de Milo')
 ];
 
 function puedeUsarGlobal(interaction) {
 
-    if (
-        interaction.guildId !== SERVIDOR_GLOBAL
-    ) {
+    if (interaction.guildId !== SERVIDOR_GLOBAL) {
         return false;
     }
 
-    if (
-        !interaction.member?.roles?.cache?.has(
-            ROL_GLOBAL
-        )
-    ) {
+    if (!interaction.member?.roles?.cache?.has(ROL_GLOBAL)) {
         return false;
     }
 
