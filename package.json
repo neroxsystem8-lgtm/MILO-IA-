@@ -12,6 +12,7 @@
   "dependencies": {
     "@google/genai": "latest",
     "discord.js": "^14.24.2",
-    "dotenv": "^16.6.1"
+    "dotenv": "^16.6.1",
+    "mathjs": "^14.0.1"
   }
 }
