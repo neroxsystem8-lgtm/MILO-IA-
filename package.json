@@ -1,0 +1,17 @@
+{
+  "name": "milo-ai",
+  "version": "1.0.0",
+  "description": "Bot de IA Milo para Discord con Gemini",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js"
+  },
+  "dependencies": {
+    "@google/genai": "^1.0.0",
+    "discord.js": "^14.0.0",
+    "dotenv": "^16.0.0"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  }
+}
