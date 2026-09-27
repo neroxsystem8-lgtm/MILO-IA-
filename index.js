@@ -28,12 +28,14 @@ const {
 } = require('./moderacion');
 
 const client = new Client({
+
     intents: [
         GatewayIntentBits.Guilds,
         GatewayIntentBits.GuildMessages,
         GatewayIntentBits.MessageContent,
         GatewayIntentBits.GuildMembers
     ],
+
     partials: [
         Partials.Channel,
         Partials.Message
@@ -41,7 +43,7 @@ const client = new Client({
 });
 
 // ==========================================
-// CUANDO MILO ESTÁ LISTO
+// MILO LISTO
 // ==========================================
 
 client.once(
@@ -53,7 +55,9 @@ client.once(
         );
 
         client.user.setPresence({
+
             status: 'online',
+
             activities: [
                 {
                     name: '? para hablar conmigo',
@@ -62,11 +66,12 @@ client.once(
             ]
         });
 
-        const rest = new REST({
-            version: '10'
-        }).setToken(
-            process.env.DISCORD_TOKEN
-        );
+        const rest =
+            new REST({
+                version: '10'
+            }).setToken(
+                process.env.DISCORD_TOKEN
+            );
 
         try {
 
@@ -76,7 +81,8 @@ client.once(
                 ),
                 {
                     body: comandos.map(
-                        comando => comando.toJSON()
+                        comando =>
+                            comando.toJSON()
                     )
                 }
             );
@@ -96,6 +102,121 @@ client.once(
 );
 
 // ==========================================
+// PROCESAR PREGUNTA DE IA
+// ==========================================
+
+async function procesarPregunta(
+    message,
+    pregunta
+) {
+
+    let pensando = false;
+
+    try {
+
+        // 🤔 MILO ESTÁ PENSANDO
+        await message.react('🤔');
+
+        pensando = true;
+
+        await message.channel.sendTyping();
+
+        const respuesta =
+            await preguntarGemini(
+                pregunta
+            );
+
+        // QUITAR 🤔
+        await message.reactions
+            .removeAll()
+            .catch(() => {});
+
+        pensando = false;
+
+        // ✅ TERMINÓ
+        await message.react('✅');
+
+        if (!respuesta) {
+
+            await message.reply({
+                content:
+                    '⚠️ No recibí una respuesta de la IA.',
+                allowedMentions: {
+                    repliedUser: false
+                }
+            });
+
+            return;
+        }
+
+        /*
+         * Discord permite máximo 2000 caracteres
+         * por mensaje.
+         */
+
+        const partes = [];
+
+        for (
+            let i = 0;
+            i < respuesta.length;
+            i += 1900
+        ) {
+
+            partes.push(
+                respuesta.slice(
+                    i,
+                    i + 1900
+                )
+            );
+        }
+
+        for (
+            let i = 0;
+            i < partes.length;
+            i++
+        ) {
+
+            await message.reply({
+
+                content:
+                    i === 0
+                        ? `🤖 **Milo**\n\n${partes[i]}`
+                        : partes[i],
+
+                allowedMentions: {
+                    repliedUser: false
+                }
+            });
+        }
+
+    } catch (error) {
+
+        console.error(
+            '❌ Error procesando pregunta:',
+            error
+        );
+
+        if (pensando) {
+
+            await message.reactions
+                .removeAll()
+                .catch(() => {});
+        }
+
+        await message.reply({
+
+            content:
+                '❌ **No pude procesar tu pregunta.**\n\n' +
+                'Verifica que Gemini esté disponible e inténtalo nuevamente.',
+
+            allowedMentions: {
+                repliedUser: false
+            }
+        });
+    }
+}
+
+// ==========================================
 // MENSAJES
 // ==========================================
 
@@ -107,17 +228,23 @@ client.on(
             return;
         }
 
-        // Antiinsultos
+        // 🛡️ ANTIINSULTOS
         const moderado =
-            await revisarMensaje(message);
+            await revisarMensaje(
+                message
+            );
 
         if (moderado) {
             return;
         }
 
+        // ¿MENCIONÓ A MILO?
         const mencionado =
-            message.mentions.has(client.user);
+            message.mentions.has(
+                client.user
+            );
 
+        // ¿USÓ ?
         const conPrefijo =
             message.content
                 .trim()
@@ -133,7 +260,7 @@ client.on(
         let pregunta =
             message.content;
 
-        // Quitar mención
+        // QUITAR MENCIÓN
         if (mencionado) {
 
             pregunta =
@@ -143,10 +270,11 @@ client.on(
                         'g'
                     ),
                     ''
-                ).trim();
+                )
+                .trim();
         }
 
-        // Quitar ?
+        // QUITAR ?
         if (
             pregunta.startsWith('?')
         ) {
@@ -157,11 +285,17 @@ client.on(
                     .trim();
         }
 
+        // SI NO ESCRIBIÓ PREGUNTA
         if (!pregunta) {
 
             await message.reply({
+
                 content:
-                    '🤖 ¡Hola! Soy Milo. Escribe tu pregunta después de `?` o mencióname.',
+                    '🤖 **¡Hola! Soy Milo!**\n\n' +
+                    'Puedes preguntarme algo escribiendo:\n' +
+                    '`? tu pregunta`\n\n' +
+                    'O simplemente mencióname.',
+
                 allowedMentions: {
                     repliedUser: false
                 }
@@ -170,38 +304,10 @@ client.on(
             return;
         }
 
-        try {
-
-            await message.channel.sendTyping();
-
-            const respuesta =
-                await preguntarGemini(
-                    pregunta
-                );
-
-            await message.reply({
-                content:
-                    respuesta.slice(0, 2000),
-                allowedMentions: {
-                    repliedUser: false
-                }
-            });
-
-        } catch (error) {
-
-            console.error(
-                '❌ Error con Gemini:',
-                error
-            );
-
-            await message.reply({
-                content:
-                    '❌ No pude procesar tu pregunta.',
-                allowedMentions: {
-                    repliedUser: false
-                }
-            });
-        }
+        await procesarPregunta(
+            message,
+            pregunta
+        );
     }
 );
 
@@ -213,7 +319,9 @@ client.on(
     Events.InteractionCreate,
     async interaction => {
 
-        if (!interaction.isChatInputCommand()) {
+        if (
+            !interaction.isChatInputCommand()
+        ) {
             return;
         }
 
@@ -229,10 +337,11 @@ client.on(
             ) {
 
                 const pregunta =
-                    interaction.options.getString(
-                        'pregunta',
-                        true
-                    );
+                    interaction.options
+                        .getString(
+                            'pregunta',
+                            true
+                        );
 
                 await interaction.deferReply();
 
@@ -242,8 +351,13 @@ client.on(
                     );
 
                 await interaction.editReply({
+
                     content:
-                        respuesta.slice(0, 2000)
+                        `🤖 **Milo**\n\n${respuesta}`
+                            .slice(
+                                0,
+                                2000
+                            )
                 });
 
                 return;
@@ -254,12 +368,15 @@ client.on(
             // ==================================
 
             if (
-                interaction.commandName === 'chat'
+                interaction.commandName ===
+                'chat'
             ) {
 
                 await interaction.reply({
+
                     content:
                         '🤖 Puedes hablar conmigo escribiendo `?` seguido de tu pregunta o mencionándome.',
+
                     ephemeral: true
                 });
 
@@ -271,12 +388,15 @@ client.on(
             // ==================================
 
             if (
-                interaction.commandName === 'reiniciar'
+                interaction.commandName ===
+                'reiniciar'
             ) {
 
                 await interaction.reply({
+
                     content:
-                        '🔄 Tu conversación con Milo ha sido reiniciada.',
+                        '🔄 **Conversación reiniciada.**',
+
                     ephemeral: true
                 });
 
@@ -288,23 +408,26 @@ client.on(
             // ==================================
 
             if (
-                interaction.commandName === 'ayuda'
+                interaction.commandName ===
+                'ayuda'
             ) {
 
                 await interaction.reply({
+
                     content:
                         '🤖 **MILO — AYUDA**\n\n' +
-                        '`? pregunta` — Hablar con Milo\n' +
-                        '`@Milo pregunta` — Mencionar a Milo\n' +
-                        '`/ia` — Preguntar a Gemini\n' +
-                        '`/preguntar` — Hacer una pregunta\n' +
-                        '`/chat` — Información del chat\n' +
-                        '`/reiniciar` — Reiniciar conversación\n' +
-                        '`/estado` — Estado de Milo\n' +
-                        '`/modelo` — Modelo utilizado\n' +
-                        '`/ban-global` — Baneo global\n' +
-                        '`/unban-global` — Retirar baneo global\n\n' +
+                        '💬 `? pregunta` — Hablar con Milo\n' +
+                        '👤 `@Milo pregunta` — Mencionarlo\n' +
+                        '🧠 `/ia` — Preguntar a la IA\n' +
+                        '💡 `/preguntar` — Hacer una pregunta\n' +
+                        '💬 `/chat` — Información del chat\n' +
+                        '🔄 `/reiniciar` — Reiniciar conversación\n' +
+                        '📊 `/estado` — Estado de Milo\n' +
+                        '🧠 `/modelo` — Modelo utilizado\n' +
+                        '🔨 `/ban-global` — Baneo global\n' +
+                        '🔓 `/unban-global` — Retirar baneo global\n\n' +
                         '🛠️ Soporte: https://discord.gg/csnebvXgSv',
+
                     ephemeral: true
                 });
 
@@ -316,15 +439,18 @@ client.on(
             // ==================================
 
             if (
-                interaction.commandName === 'estado'
+                interaction.commandName ===
+                'estado'
             ) {
 
                 await interaction.reply({
+
                     content:
                         `🟢 **Milo está funcionando.**\n\n` +
                         `🤖 Modelo: \`${modelo}\`\n` +
                         `📡 Discord: conectado\n` +
                         `🧠 Gemini: disponible`,
+
                     ephemeral: true
                 });
 
@@ -336,12 +462,15 @@ client.on(
             // ==================================
 
             if (
-                interaction.commandName === 'modelo'
+                interaction.commandName ===
+                'modelo'
             ) {
 
                 await interaction.reply({
+
                     content:
-                        `🧠 Modelo actual de Milo: \`${modelo}\``,
+                        `🧠 **Modelo actual de Milo:**\n\`${modelo}\``,
+
                     ephemeral: true
                 });
 
@@ -357,33 +486,49 @@ client.on(
                 'ban-global'
             ) {
 
-                if (!puedeUsarGlobal(interaction)) {
+                if (
+                    !puedeUsarGlobal(
+                        interaction
+                    )
+                ) {
 
                     await interaction.reply({
+
                         content:
                             '❌ No tienes permiso para utilizar este comando.',
+
                         ephemeral: true
                     });
 
                     return;
                 }
 
-                const usuario =
-                    interaction.options.getUser(
-                        'usuario',
-                        true
-                    );
+                const usuarioId =
+                    interaction.options
+                        .getString(
+                            'usuario',
+                            true
+                        );
 
                 const razon =
-                    interaction.options.getString(
-                        'razon',
-                        true
-                    );
+                    interaction.options
+                        .getString(
+                            'razon',
+                            true
+                        );
+
+                const tiempo =
+                    interaction.options
+                        .getString(
+                            'tiempo',
+                            true
+                        );
 
                 const prueba =
-                    interaction.options.getAttachment(
-                        'prueba'
-                    );
+                    interaction.options
+                        .getAttachment(
+                            'prueba'
+                        );
 
                 await interaction.deferReply({
                     ephemeral: true
@@ -392,9 +537,11 @@ client.on(
                 const resultados =
                     await banGlobal(
                         client,
-                        usuario.id,
+                        usuarioId,
                         razon,
-                        prueba
+                        tiempo,
+                        prueba,
+                        interaction.user
                     );
 
                 const exitos =
@@ -405,12 +552,17 @@ client.on(
                     ).length;
 
                 await interaction.editReply({
+
                     content:
                         `🔨 **BAN GLOBAL EJECUTADO**\n\n` +
-                        `👤 Usuario: ${usuario.tag}\n` +
-                        `🆔 ID: ${usuario.id}\n` +
+                        `🆔 Usuario: \`${usuarioId}\`\n` +
                         `📝 Razón: ${razon}\n` +
-                        `📸 Prueba: ${prueba ? prueba.url : 'No adjunta'}\n` +
+                        `⏱️ Tiempo: ${tiempo}\n` +
+                        `📸 Prueba: ${
+                            prueba
+                                ? prueba.url
+                                : 'No adjunta'
+                        }\n` +
                         `🌐 Servidores afectados: ${exitos}`
                 });
 
@@ -426,11 +578,17 @@ client.on(
                 'unban-global'
             ) {
 
-                if (!puedeUsarGlobal(interaction)) {
+                if (
+                    !puedeUsarGlobal(
+                        interaction
+                    )
+                ) {
 
                     await interaction.reply({
+
                         content:
                             '❌ No tienes permiso para utilizar este comando.',
+
                         ephemeral: true
                     });
 
@@ -438,16 +596,18 @@ client.on(
                 }
 
                 const usuarioId =
-                    interaction.options.getString(
-                        'usuario',
-                        true
-                    );
+                    interaction.options
+                        .getString(
+                            'usuario',
+                            true
+                        );
 
                 const razon =
-                    interaction.options.getString(
-                        'razon',
-                        true
-                    );
+                    interaction.options
+                        .getString(
+                            'razon',
+                            true
+                        );
 
                 await interaction.deferReply({
                     ephemeral: true
@@ -468,9 +628,10 @@ client.on(
                     ).length;
 
                 await interaction.editReply({
+
                     content:
                         `🔓 **UNBAN GLOBAL EJECUTADO**\n\n` +
-                        `🆔 Usuario: ${usuarioId}\n` +
+                        `🆔 Usuario: \`${usuarioId}\`\n` +
                         `📝 Razón: ${razon}\n` +
                         `🌐 Servidores afectados: ${exitos}`
                 });
@@ -485,28 +646,35 @@ client.on(
                 error
             );
 
-            if (interaction.replied ||
-                interaction.deferred) {
+            if (
+                interaction.replied ||
+                interaction.deferred
+            ) {
 
-                await interaction.editReply({
-                    content:
-                        '❌ Ocurrió un error al ejecutar el comando.'
-                }).catch(() => {});
+                await interaction
+                    .editReply({
+                        content:
+                            '❌ Ocurrió un error al ejecutar el comando.'
+                    })
+                    .catch(() => {});
 
             } else {
 
                 await interaction.reply({
+
                     content:
                         '❌ Ocurrió un error al ejecutar el comando.',
+
                     ephemeral: true
-                }).catch(() => {});
+                })
+                .catch(() => {});
             }
         }
     }
 );
 
 // ==========================================
-// INICIAR MILO
+// LOGIN
 // ==========================================
 
 client.login(
