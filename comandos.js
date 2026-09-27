@@ -1,8 +1,5 @@
-// comandos.js
-
 const {
-    SlashCommandBuilder,
-    PermissionFlagsBits
+    SlashCommandBuilder
 } = require('discord.js');
 
 const SERVIDOR_GLOBAL = '1553169784697528450';
@@ -10,9 +7,9 @@ const ROL_GLOBAL = '1553526636547280967';
 
 const comandos = [
 
-    // =========================
+    // ==========================================
     // IA
-    // =========================
+    // ==========================================
 
     new SlashCommandBuilder()
         .setName('ia')
@@ -42,9 +39,9 @@ const comandos = [
         .setName('reiniciar')
         .setDescription('Reinicia tu conversación con Milo'),
 
-    // =========================
+    // ==========================================
     // INFORMACIÓN
-    // =========================
+    // ==========================================
 
     new SlashCommandBuilder()
         .setName('ayuda')
@@ -58,23 +55,29 @@ const comandos = [
         .setName('modelo')
         .setDescription('Muestra el modelo de IA utilizado'),
 
-    // =========================
+    // ==========================================
     // BAN GLOBAL
-    // =========================
+    // ==========================================
 
     new SlashCommandBuilder()
         .setName('ban-global')
         .setDescription('Banea globalmente a un usuario')
-        .addUserOption(option =>
+        .addStringOption(option =>
             option
                 .setName('usuario')
-                .setDescription('Usuario que será baneado')
+                .setDescription('ID del usuario que será baneado')
                 .setRequired(true)
         )
         .addStringOption(option =>
             option
                 .setName('razon')
                 .setDescription('Razón del baneo')
+                .setRequired(true)
+        )
+        .addStringOption(option =>
+            option
+                .setName('tiempo')
+                .setDescription('Duración: permanente, 1h, 1d, 7d, 30d, etc.')
                 .setRequired(true)
         )
         .addAttachmentOption(option =>
@@ -84,9 +87,9 @@ const comandos = [
                 .setRequired(false)
         ),
 
-    // =========================
+    // ==========================================
     // UNBAN GLOBAL
-    // =========================
+    // ==========================================
 
     new SlashCommandBuilder()
         .setName('unban-global')
@@ -111,30 +114,24 @@ const comandos = [
         )
 ];
 
-/*
-========================================
-VERIFICAR PERMISOS DE MODERACIÓN GLOBAL
-========================================
-*/
-
 function puedeUsarGlobal(interaction) {
 
-    if (interaction.guildId !== SERVIDOR_GLOBAL) {
+    if (
+        interaction.guildId !== SERVIDOR_GLOBAL
+    ) {
         return false;
     }
 
-    if (!interaction.member?.roles?.cache?.has(ROL_GLOBAL)) {
+    if (
+        !interaction.member?.roles?.cache?.has(
+            ROL_GLOBAL
+        )
+    ) {
         return false;
     }
 
     return true;
 }
-
-/*
-========================================
-EXPORTAR
-========================================
-*/
 
 module.exports = {
     comandos,
