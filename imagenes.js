@@ -1,256 +1,187 @@
 const fs = require('fs');
 const path = require('path');
-const { GoogleGenAI } = require('@google/genai');
+const { InferenceClient } = require('@huggingface/inference');
 
 const LIMITE_DIARIO = 3;
 
-const API_KEY = process.env.GEMINI_API_KEY;
-
+const HF_TOKEN = process.env.HF_TOKEN;
 const MODELO_IMAGEN =
-    process.env.GEMINI_IMAGE_MODEL ||
-    'gemini-3.1-flash-image';
+    process.env.HF_IMAGE_MODEL ||
+    'black-forest-labs/FLUX.1-schnell';
 
 const ARCHIVO_LIMITE = path.join(
     __dirname,
     'imagenes-limite.json'
 );
 
-if (!API_KEY) {
-    console.error(
-        '❌ Falta GEMINI_API_KEY en las variables de entorno.'
-    );
-}
+const hf = HF_TOKEN
+    ? new InferenceClient(HF_TOKEN)
+    : null;
 
-const ai = new GoogleGenAI({
-    apiKey: API_KEY
-});
 
-/* =========================
-   FECHA
-========================= */
+// =========================
+// FECHA
+// =========================
 
 function obtenerFecha() {
-
     return new Date()
         .toISOString()
         .split('T')[0];
-
 }
 
-/* =========================
-   CARGAR LÍMITE
-========================= */
+
+// =========================
+// CARGAR DATOS
+// =========================
 
 function cargarDatos() {
 
     try {
 
         if (!fs.existsSync(ARCHIVO_LIMITE)) {
+            return {
+                fecha: obtenerFecha(),
+                usadas: 0
+            };
+        }
+
+        const datos = JSON.parse(
+            fs.readFileSync(
+                ARCHIVO_LIMITE,
+                'utf8'
+            )
+        );
+
+        if (datos.fecha !== obtenerFecha()) {
 
             return {
                 fecha: obtenerFecha(),
                 usadas: 0
             };
-
-        }
-
-        const datos =
-            JSON.parse(
-                fs.readFileSync(
-                    ARCHIVO_LIMITE,
-                    'utf8'
-                )
-            );
-
-        const fechaActual =
-            obtenerFecha();
-
-        if (
-            datos.fecha !==
-            fechaActual
-        ) {
-
-            return {
-                fecha: fechaActual,
-                usadas: 0
-            };
-
         }
 
         return datos;
 
-    } catch (error) {
-
-        console.error(
-            '❌ Error leyendo el límite de imágenes:',
-            error
-        );
+    } catch {
 
         return {
             fecha: obtenerFecha(),
             usadas: 0
         };
-
     }
-
 }
 
-/* =========================
-   GUARDAR LÍMITE
-========================= */
+
+// =========================
+// GUARDAR DATOS
+// =========================
 
 function guardarDatos(datos) {
 
-    try {
-
-        fs.writeFileSync(
-            ARCHIVO_LIMITE,
-            JSON.stringify(
-                datos,
-                null,
-                4
-            )
-        );
-
-    } catch (error) {
-
-        console.error(
-            '❌ Error guardando el límite:',
-            error
-        );
-
-    }
-
+    fs.writeFileSync(
+        ARCHIVO_LIMITE,
+        JSON.stringify(
+            datos,
+            null,
+            2
+        )
+    );
 }
 
-/* =========================
-   DETECTAR NSFW
-========================= */
+
+// =========================
+// DETECTAR NSFW
+// =========================
 
 function esNSFW(prompt) {
 
-    const palabrasBloqueadas = [
-
+    const palabras = [
+        'nsfw',
         'porn',
-        'porno',
         'pornografía',
-        'pornografia',
-
-        'nude',
-        'nudity',
-
+        'porno',
         'desnudo',
         'desnuda',
-
-        'sex',
-        'sexual',
-        'sexo',
-
+        'desnudos',
+        'desnudas',
+        'sexo explícito',
+        'sexual explícito',
+        'genitales',
         'xxx',
-
-        'hentai',
-
-        'erótico',
-        'erotico',
-        'erótica',
-        'erotica',
-
-        'fetish',
-        'fetiche',
-
-        'nsfw'
-
+        'erótico explícito',
+        'erotico explicito'
     ];
 
     const texto =
         prompt
             .toLowerCase()
             .normalize('NFD')
-            .replace(
-                /[\u0300-\u036f]/g,
-                ''
-            );
+            .replace(/[\u0300-\u036f]/g, '');
 
-    return palabrasBloqueadas.some(
+    return palabras.some(
         palabra =>
             texto.includes(
                 palabra
                     .normalize('NFD')
-                    .replace(
-                        /[\u0300-\u036f]/g,
-                        ''
-                    )
+                    .replace(/[\u0300-\u036f]/g, '')
             )
     );
-
 }
 
-/* =========================
-   VER LÍMITE
-========================= */
+
+// =========================
+// OBTENER LÍMITE
+// =========================
 
 function obtenerLimiteImagenes() {
 
-    const datos =
-        cargarDatos();
+    const datos = cargarDatos();
 
     return {
-
-        usadas:
-            datos.usadas,
-
+        usadas: datos.usadas,
         restantes:
             Math.max(
                 0,
-                LIMITE_DIARIO -
-                    datos.usadas
-            ),
-
-        limite:
-            LIMITE_DIARIO
-
+                LIMITE_DIARIO - datos.usadas
+            )
     };
-
 }
 
-/* =========================
-   CONSUMIR IMAGEN
-========================= */
+
+// =========================
+// CONSUMIR IMAGEN
+// =========================
 
 function consumirImagen() {
 
-    const datos =
-        cargarDatos();
-
-    if (
-        datos.usadas >=
-        LIMITE_DIARIO
-    ) {
-
-        return false;
-
-    }
+    const datos = cargarDatos();
 
     datos.usadas++;
 
     guardarDatos(datos);
 
-    return true;
-
+    return obtenerLimiteImagenes();
 }
 
-/* =========================
-   GENERAR IMAGEN
-========================= */
+
+// =========================
+// GENERAR IMAGEN
+// =========================
 
 async function generarImagen(prompt) {
 
-    if (!API_KEY) {
+    if (!HF_TOKEN) {
 
         throw new Error(
-            'GEMINI_API_KEY no está configurada.'
+            'HF_TOKEN no está configurado.'
         );
+    }
 
+    if (!hf) {
+
+        throw new Error(
+            'No se pudo inicializar Hugging Face.'
+        );
     }
 
     if (
@@ -261,98 +192,107 @@ async function generarImagen(prompt) {
         throw new Error(
             'Debes proporcionar una descripción para la imagen.'
         );
-
     }
 
     if (esNSFW(prompt)) {
 
         throw new Error(
-            'No puedo generar imágenes con contenido NSFW.'
+            'Milo no puede generar imágenes con contenido NSFW.'
         );
-
     }
+
+
+    // =========================
+    // COMPROBAR LÍMITE
+    // =========================
 
     const limite =
         obtenerLimiteImagenes();
 
-    if (
-        limite.restantes <= 0
-    ) {
+    if (limite.restantes <= 0) {
 
         throw new Error(
             'Milo ya utilizó las 3 generaciones de imágenes disponibles hoy. El límite se reiniciará mañana.'
         );
-
     }
+
 
     try {
 
         console.log(
-            '🎨 Generando imagen...'
+            `🖼️ Generando imagen con ${MODELO_IMAGEN}...`
         );
 
-        console.log(
-            '🧠 Modelo:',
-            MODELO_IMAGEN
-        );
+        const imagen =
+            await hf.textToImage({
 
-        console.log(
-            '📝 Prompt:',
-            prompt
-        );
+                model: MODELO_IMAGEN,
 
-        const interaction =
-            await ai.interactions.create({
+                inputs: prompt,
 
-                model:
-                    MODELO_IMAGEN,
-
-                input:
-                    `Genera una imagen de alta calidad basada en esta descripción:
-
-${prompt}
-
-No generes contenido sexual explícito, pornográfico o NSFW.`
+                parameters: {
+                    num_inference_steps: 4
+                }
 
             });
 
-        const imagen =
-            interaction?.output_image;
 
-        if (!imagen) {
+        // =========================
+        // CONVERTIR RESPUESTA
+        // =========================
+
+        let buffer;
+
+
+        if (
+            Buffer.isBuffer(imagen)
+        ) {
+
+            buffer = imagen;
+
+        } else if (
+            imagen instanceof ArrayBuffer
+        ) {
+
+            buffer = Buffer.from(
+                imagen
+            );
+
+        } else if (
+            imagen?.arrayBuffer
+        ) {
+
+            const datos =
+                await imagen.arrayBuffer();
+
+            buffer = Buffer.from(
+                datos
+            );
+
+        } else {
 
             throw new Error(
-                'Gemini no devolvió ninguna imagen.'
+                'Hugging Face devolvió un formato de imagen desconocido.'
             );
-
         }
 
-        if (!imagen.data) {
 
-            throw new Error(
-                'Gemini devolvió una imagen sin datos.'
-            );
-
-        }
-
-        const buffer =
-            Buffer.from(
-                imagen.data,
-                'base64'
-            );
-
-        if (!buffer.length) {
+        if (
+            !buffer ||
+            !buffer.length
+        ) {
 
             throw new Error(
                 'La imagen generada está vacía.'
             );
-
         }
 
-        // Solo consumimos el límite
-        // después de generar correctamente.
+
+        // Solo gastamos una generación
+        // si realmente se creó la imagen.
 
         consumirImagen();
+
 
         console.log(
             '✅ Imagen generada correctamente.'
@@ -363,25 +303,41 @@ No generes contenido sexual explícito, pornográfico o NSFW.`
     } catch (error) {
 
         console.error(
-            '❌ ERROR GENERANDO IMAGEN'
+            '❌ ERROR GENERANDO IMAGEN:'
         );
 
-        console.error(
-            error?.message ||
-            error
-        );
+        console.error(error);
+
+        if (
+            error?.status === 401 ||
+            error?.statusCode === 401
+        ) {
+
+            throw new Error(
+                'El token de Hugging Face no es válido.'
+            );
+        }
+
+        if (
+            error?.status === 429 ||
+            error?.statusCode === 429
+        ) {
+
+            throw new Error(
+                'Hugging Face alcanzó temporalmente el límite de solicitudes.'
+            );
+        }
 
         throw new Error(
-            'No pude generar la imagen en este momento. Inténtalo nuevamente.'
+            'No se pudo generar la imagen. Inténtalo nuevamente.'
         );
-
     }
-
 }
 
-/* =========================
-   EXPORTAR
-========================= */
+
+// =========================
+// EXPORTAR
+// =========================
 
 module.exports = {
 
@@ -393,6 +349,8 @@ module.exports = {
 
     esNSFW,
 
-    LIMITE_DIARIO
+    LIMITE_DIARIO,
+
+    MODELO_IMAGEN
 
 };
