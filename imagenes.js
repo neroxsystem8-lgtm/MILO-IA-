@@ -1,20 +1,45 @@
 const fs = require('fs');
 const path = require('path');
-
-// ==========================================
-// ⚙️ CONFIGURACIÓN
-// ==========================================
+const { GoogleGenAI } = require('@google/genai');
 
 const LIMITE_DIARIO = 3;
+
+const API_KEY = process.env.GEMINI_API_KEY;
+
+const MODELO_IMAGEN =
+    process.env.GEMINI_IMAGE_MODEL ||
+    'gemini-3.1-flash-image';
 
 const ARCHIVO_LIMITE = path.join(
     __dirname,
     'imagenes-limite.json'
 );
 
-// ==========================================
-// 📁 CARGAR DATOS
-// ==========================================
+if (!API_KEY) {
+    console.error(
+        '❌ Falta GEMINI_API_KEY en las variables de entorno.'
+    );
+}
+
+const ai = new GoogleGenAI({
+    apiKey: API_KEY
+});
+
+/* =========================
+   FECHA
+========================= */
+
+function obtenerFecha() {
+
+    return new Date()
+        .toISOString()
+        .split('T')[0];
+
+}
+
+/* =========================
+   CARGAR LÍMITE
+========================= */
 
 function cargarDatos() {
 
@@ -26,24 +51,30 @@ function cargarDatos() {
                 fecha: obtenerFecha(),
                 usadas: 0
             };
+
         }
 
-        const datos = JSON.parse(
-            fs.readFileSync(
-                ARCHIVO_LIMITE,
-                'utf8'
-            )
-        );
+        const datos =
+            JSON.parse(
+                fs.readFileSync(
+                    ARCHIVO_LIMITE,
+                    'utf8'
+                )
+            );
 
-        const fechaActual = obtenerFecha();
+        const fechaActual =
+            obtenerFecha();
 
-        // Reiniciar automáticamente cada día
-        if (datos.fecha !== fechaActual) {
+        if (
+            datos.fecha !==
+            fechaActual
+        ) {
 
             return {
                 fecha: fechaActual,
                 usadas: 0
             };
+
         }
 
         return datos;
@@ -59,12 +90,14 @@ function cargarDatos() {
             fecha: obtenerFecha(),
             usadas: 0
         };
+
     }
+
 }
 
-// ==========================================
-// 💾 GUARDAR DATOS
-// ==========================================
+/* =========================
+   GUARDAR LÍMITE
+========================= */
 
 function guardarDatos(datos) {
 
@@ -85,24 +118,14 @@ function guardarDatos(datos) {
             '❌ Error guardando el límite:',
             error
         );
+
     }
+
 }
 
-// ==========================================
-// 📅 FECHA ACTUAL
-// ==========================================
-
-function obtenerFecha() {
-
-    const ahora = new Date();
-
-    return ahora.toISOString()
-        .split('T')[0];
-}
-
-// ==========================================
-// 🔞 BLOQUEO NSFW
-// ==========================================
+/* =========================
+   DETECTAR NSFW
+========================= */
 
 function esNSFW(prompt) {
 
@@ -112,63 +135,100 @@ function esNSFW(prompt) {
         'porno',
         'pornografía',
         'pornografia',
+
         'nude',
         'nudity',
+
         'desnudo',
         'desnuda',
+
         'sex',
         'sexual',
         'sexo',
+
         'xxx',
+
         'hentai',
+
         'erótico',
         'erotico',
         'erótica',
         'erotica',
+
         'fetish',
         'fetiche',
+
         'nsfw'
+
     ];
 
     const texto =
-        prompt.toLowerCase();
+        prompt
+            .toLowerCase()
+            .normalize('NFD')
+            .replace(
+                /[\u0300-\u036f]/g,
+                ''
+            );
 
     return palabrasBloqueadas.some(
         palabra =>
-            texto.includes(palabra)
+            texto.includes(
+                palabra
+                    .normalize('NFD')
+                    .replace(
+                        /[\u0300-\u036f]/g,
+                        ''
+                    )
+            )
     );
+
 }
 
-// ==========================================
-// 📊 CONSULTAR LÍMITE
-// ==========================================
+/* =========================
+   VER LÍMITE
+========================= */
 
 function obtenerLimiteImagenes() {
 
-    const datos = cargarDatos();
+    const datos =
+        cargarDatos();
 
     return {
-        usadas: datos.usadas,
+
+        usadas:
+            datos.usadas,
+
         restantes:
             Math.max(
                 0,
-                LIMITE_DIARIO - datos.usadas
+                LIMITE_DIARIO -
+                    datos.usadas
             ),
-        limite: LIMITE_DIARIO
+
+        limite:
+            LIMITE_DIARIO
+
     };
+
 }
 
-// ==========================================
-// ➕ CONSUMIR UNA IMAGEN
-// ==========================================
+/* =========================
+   CONSUMIR IMAGEN
+========================= */
 
 function consumirImagen() {
 
-    const datos = cargarDatos();
+    const datos =
+        cargarDatos();
 
-    if (datos.usadas >= LIMITE_DIARIO) {
+    if (
+        datos.usadas >=
+        LIMITE_DIARIO
+    ) {
 
         return false;
+
     }
 
     datos.usadas++;
@@ -176,72 +236,163 @@ function consumirImagen() {
     guardarDatos(datos);
 
     return true;
+
 }
 
-// ==========================================
-// 🖼️ GENERAR IMAGEN
-// ==========================================
+/* =========================
+   GENERAR IMAGEN
+========================= */
 
 async function generarImagen(prompt) {
 
-    if (!prompt || !prompt.trim()) {
+    if (!API_KEY) {
+
+        throw new Error(
+            'GEMINI_API_KEY no está configurada.'
+        );
+
+    }
+
+    if (
+        !prompt ||
+        !prompt.trim()
+    ) {
 
         throw new Error(
             'Debes proporcionar una descripción para la imagen.'
         );
+
     }
 
-    // 🔞 Bloqueo NSFW
     if (esNSFW(prompt)) {
 
         throw new Error(
             'No puedo generar imágenes con contenido NSFW.'
         );
+
     }
 
-    // 📊 Comprobar límite global
     const limite =
         obtenerLimiteImagenes();
 
-    if (limite.restantes <= 0) {
+    if (
+        limite.restantes <= 0
+    ) {
 
         throw new Error(
             'Milo ya utilizó las 3 generaciones de imágenes disponibles hoy. El límite se reiniciará mañana.'
         );
+
     }
 
-    /*
-    ==========================================
-    ⚠️ API DE GENERACIÓN
-    ==========================================
+    try {
 
-    Aquí conectaremos la API real de imágenes.
+        console.log(
+            '🎨 Generando imagen...'
+        );
 
-    Ejemplo del flujo:
+        console.log(
+            '🧠 Modelo:',
+            MODELO_IMAGEN
+        );
 
-    1. Recibir prompt.
-    2. Enviar prompt a la API.
-    3. Recibir la imagen.
-    4. Consumir 1 generación.
-    5. Devolver la imagen.
+        console.log(
+            '📝 Prompt:',
+            prompt
+        );
 
-    No consumimos el límite hasta que
-    la generación haya sido exitosa.
-    */
+        const interaction =
+            await ai.interactions.create({
 
-    throw new Error(
-        'La API de generación de imágenes todavía no está configurada.'
-    );
+                model:
+                    MODELO_IMAGEN,
+
+                input:
+                    `Genera una imagen de alta calidad basada en esta descripción:
+
+${prompt}
+
+No generes contenido sexual explícito, pornográfico o NSFW.`
+
+            });
+
+        const imagen =
+            interaction?.output_image;
+
+        if (!imagen) {
+
+            throw new Error(
+                'Gemini no devolvió ninguna imagen.'
+            );
+
+        }
+
+        if (!imagen.data) {
+
+            throw new Error(
+                'Gemini devolvió una imagen sin datos.'
+            );
+
+        }
+
+        const buffer =
+            Buffer.from(
+                imagen.data,
+                'base64'
+            );
+
+        if (!buffer.length) {
+
+            throw new Error(
+                'La imagen generada está vacía.'
+            );
+
+        }
+
+        // Solo consumimos el límite
+        // después de generar correctamente.
+
+        consumirImagen();
+
+        console.log(
+            '✅ Imagen generada correctamente.'
+        );
+
+        return buffer;
+
+    } catch (error) {
+
+        console.error(
+            '❌ ERROR GENERANDO IMAGEN'
+        );
+
+        console.error(
+            error?.message ||
+            error
+        );
+
+        throw new Error(
+            'No pude generar la imagen en este momento. Inténtalo nuevamente.'
+        );
+
+    }
+
 }
 
-// ==========================================
-// 📦 EXPORTAR
-// ==========================================
+/* =========================
+   EXPORTAR
+========================= */
 
 module.exports = {
+
     generarImagen,
+
     obtenerLimiteImagenes,
+
     consumirImagen,
+
     esNSFW,
+
     LIMITE_DIARIO
+
 };
