@@ -5,12 +5,13 @@ const {
     GatewayIntentBits,
     Partials,
     EmbedBuilder,
-    AttachmentBuilder
+    AttachmentBuilder,
+    ActivityType
 } = require('discord.js');
 
-/* =========================
-   MÓDULOS
-========================= */
+// =========================
+// IMPORTACIONES
+// =========================
 
 const {
     registrarComandos,
@@ -18,9 +19,9 @@ const {
 } = require('./comandos');
 
 const {
-    preguntarGemini,
-    modelo
-} = require('./gemini');
+    preguntarGroq,
+    MODELO
+} = require('./groq');
 
 const {
     generarImagen,
@@ -30,7 +31,8 @@ const {
 const {
     obtenerIdioma,
     establecerIdioma,
-    obtenerNombreIdioma
+    obtenerNombreIdioma,
+    obtenerIdiomas
 } = require('./idiomas');
 
 const {
@@ -46,9 +48,10 @@ const {
     unbanGlobal
 } = require('./moderacion');
 
-/* =========================
-   CLIENTE
-========================= */
+
+// =========================
+// CLIENTE DISCORD
+// =========================
 
 const client = new Client({
 
@@ -72,95 +75,295 @@ const client = new Client({
 
 });
 
-/* =========================
-   CONFIGURACIÓN
-========================= */
 
-const TOKEN =
-    process.env.DISCORD_TOKEN;
+// =========================
+// CONFIGURACIÓN
+// =========================
 
-const PREFIX = '!';
+const PREFIX = '?';
 
-/* =========================
-   PROCESAR PREGUNTA
-========================= */
+const SUPPORT_SERVER =
+    'https://discord.gg/csnebvXgSv';
 
-async function procesarPregunta(
-    message,
-    pregunta
-) {
+
+// =========================
+// PRESENCIA
+// =========================
+
+const actividades = [
+    '+10 bots en funcionamiento | /ayuda',
+    'Pregúntame lo que quieras',
+    'IA con Groq 🧠',
+    'Generación de imágenes 🖼️',
+    '/ayuda para ver comandos'
+];
+
+let actividadActual = 0;
+
+function actualizarPresencia() {
+
+    client.user.setPresence({
+
+        status: 'dnd',
+
+        activities: [
+            {
+                name: actividades[actividadActual],
+                type: ActivityType.Watching
+            }
+        ]
+
+    });
+
+    actividadActual++;
 
     if (
-        !pregunta ||
-        !pregunta.trim()
+        actividadActual >= actividades.length
     ) {
-
-        return;
-
+        actividadActual = 0;
     }
+}
 
-    const idioma =
-        obtenerIdioma(
-            message.author.id
-        );
+
+// =========================
+// BOT LISTO
+// =========================
+
+client.once('ready', async () => {
+
+    console.log(
+        `✅ Milo conectado como ${client.user.tag}`
+    );
+
+    console.log(
+        `🧠 Modelo Groq: ${MODELO}`
+    );
+
+    console.log(
+        `🌐 Servidores: ${client.guilds.cache.size}`
+    );
+
+    actualizarPresencia();
+
+    setInterval(
+        actualizarPresencia,
+        5 * 60 * 1000
+    );
+
+
+    // =========================
+    // REGISTRAR COMANDOS
+    // =========================
 
     try {
 
-        await message.react('🤔');
+        await registrarComandos(client);
+
+        console.log(
+            '✅ Comandos registrados correctamente.'
+        );
+
+    } catch (error) {
+
+        console.error(
+            '❌ Error registrando comandos:'
+        );
+
+        console.error(error);
+
+    }
+
+});
+
+
+// =========================
+// MENSAJES NORMALES
+// =========================
+
+client.on('messageCreate', async message => {
+
+    try {
+
+        if (message.author.bot) {
+            return;
+        }
+
+
+        // =========================
+        // DETECTAR MENSAJE PARA MILO
+        // =========================
+
+        const contenido =
+            message.content.trim();
+
+        const contenidoLower =
+            contenido.toLowerCase();
+
+        const mencion =
+            `<@${client.user.id}>`;
+
+        const mencionNick =
+            `<@!${client.user.id}>`;
+
+        let pregunta = null;
+
+
+        // Milo pregunta
+        if (
+            contenidoLower.startsWith('milo ')
+        ) {
+
+            pregunta =
+                contenido.slice(5).trim();
+
+        }
+
+
+        // Prefijo ?
+        else if (
+            contenido.startsWith(PREFIX)
+        ) {
+
+            pregunta =
+                contenido
+                    .slice(PREFIX.length)
+                    .trim();
+
+        }
+
+
+        // Mención
+        else if (
+            contenido.startsWith(mencion) ||
+            contenido.startsWith(mencionNick)
+        ) {
+
+            pregunta =
+                contenido
+                    .replace(mencion, '')
+                    .replace(mencionNick, '')
+                    .trim();
+
+        }
+
+
+        if (!pregunta) {
+            return;
+        }
+
+
+        // =========================
+        // IDIOMA
+        // =========================
+
+        const idioma =
+            obtenerIdioma(
+                message.author.id
+            );
+
+
+        // =========================
+        // REACCIÓN PENSANDO
+        // =========================
+
+        let reaccionPensando = false;
+
+        try {
+
+            await message.react('🤔');
+
+            reaccionPensando = true;
+
+        } catch {}
+
+
+        console.log(
+            `🤖 Pregunta: ${pregunta}`
+        );
+
+        console.log(
+            `🧠 Modelo: ${MODELO}`
+        );
+
+        console.log(
+            `🌐 Idioma: ${idioma}`
+        );
+
+
+        // =========================
+        // GROQ
+        // =========================
 
         const respuesta =
-            await preguntarGemini(
+            await preguntarGroq(
                 pregunta,
                 idioma
             );
 
-        try {
-            await message.reactions.cache
-                .get('🤔')
-                ?.users.remove(
-                    client.user.id
-                );
-        } catch {}
 
-        await message.react('✅');
+        // =========================
+        // ELIMINAR 🤔
+        // =========================
 
-        const texto =
-            String(respuesta);
+        if (reaccionPensando) {
 
-        const partes = [];
+            try {
 
-        for (
-            let i = 0;
-            i < texto.length;
-            i += 1900
-        ) {
+                await message.reactions
+                    .cache
+                    .get('🤔')
+                    ?.users
+                    .remove(client.user.id);
 
-            partes.push(
-                texto.substring(
-                    i,
-                    i + 1900
-                )
-            );
+            } catch {}
 
         }
 
-        for (
-            let i = 0;
-            i < partes.length;
-            i++
-        ) {
 
-            if (i === 0) {
+        // =========================
+        // ENVIAR RESPUESTA
+        // =========================
 
-                await message.reply(
-                    `🤖 **Milo**\n\n${partes[i]}`
+        if (respuesta.length <= 2000) {
+
+            const mensaje =
+                await message.reply({
+                    content: respuesta
+                });
+
+            try {
+                await mensaje.react('✅');
+            } catch {}
+
+        } else {
+
+            // Discord limita los mensajes
+            // a 2000 caracteres.
+
+            const partes = [];
+
+            for (
+                let i = 0;
+                i < respuesta.length;
+                i += 1900
+            ) {
+
+                partes.push(
+                    respuesta.slice(
+                        i,
+                        i + 1900
+                    )
                 );
 
-            } else {
+            }
 
-                await message.channel.send(
-                    partes[i]
-                );
+            for (
+                const parte of partes
+            ) {
+
+                await message.reply({
+                    content: parte
+                });
 
             }
 
@@ -169,222 +372,49 @@ async function procesarPregunta(
     } catch (error) {
 
         console.error(
-            '❌ Error procesando pregunta:',
-            error
+            '❌ ERROR EN MENSAJE IA:'
         );
+
+        console.error(error);
 
         try {
 
-            await message.reactions.cache
-                .get('🤔')
-                ?.users.remove(
-                    client.user.id
-                );
+            await message.reply({
+                content:
+                    `❌ ${error.message || 'Ocurrió un error procesando tu pregunta.'}`
+            });
 
         } catch {}
 
-        try {
-            await message.react('❌');
-        } catch {}
-
-        await message.reply(
-            '❌ Ocurrió un error al procesar tu pregunta.'
-        );
-
     }
 
-}
+});
 
-/* =========================
-   EVENTO READY
-========================= */
 
-client.once(
-    'ready',
-    async () => {
-
-        console.log(
-            `✅ Milo conectado como ${client.user.tag}`
-        );
-
-        console.log(
-            `🧠 Modelo: ${modelo}`
-        );
-
-        console.log(
-            `🌐 Servidores: ${client.guilds.cache.size}`
-        );
-
-        client.user.setPresence({
-
-            status: 'dnd',
-
-            activities: [
-                {
-                    name:
-                        '+10 bots en funcionamiento | /help',
-
-                    type: 0
-                }
-            ]
-
-        });
-
-        try {
-
-            await registrarComandos(
-                client
-            );
-
-            console.log(
-                '✅ Comandos registrados correctamente.'
-            );
-
-        } catch (error) {
-
-            console.error(
-                '❌ Error registrando comandos:',
-                error
-            );
-
-        }
-
-    }
-);
-
-/* =========================
-   MENSAJES
-========================= */
-
-client.on(
-    'messageCreate',
-    async message => {
-
-        if (
-            message.author.bot
-        ) {
-            return;
-        }
-
-        let contenido =
-            message.content.trim();
-
-        if (
-            !contenido
-        ) {
-            return;
-        }
-
-        const mencion =
-            `<@${client.user.id}>`;
-
-        const mencionNick =
-            `<@!${client.user.id}>`;
-
-        /* =========================
-           MENCIÓN
-        ========================= */
-
-        if (
-            contenido.startsWith(
-                mencion
-            ) ||
-            contenido.startsWith(
-                mencionNick
-            )
-        ) {
-
-            contenido =
-                contenido
-                    .replace(
-                        mencion,
-                        ''
-                    )
-                    .replace(
-                        mencionNick,
-                        ''
-                    )
-                    .trim();
-
-            if (
-                contenido
-            ) {
-
-                await procesarPregunta(
-                    message,
-                    contenido
-                );
-
-            }
-
-            return;
-
-        }
-
-        /* =========================
-           PREFIX
-        ========================= */
-
-        if (
-            contenido.startsWith(
-                PREFIX
-            )
-        ) {
-
-            const partes =
-                contenido
-                    .slice(
-                        PREFIX.length
-                    )
-                    .trim()
-                    .split(/\s+/);
-
-            const comando =
-                partes.shift()
-                    ?.toLowerCase();
-
-            const pregunta =
-                partes.join(' ');
-
-            if (
-                comando === 'ia' ||
-                comando === 'preguntar'
-            ) {
-
-                await procesarPregunta(
-                    message,
-                    pregunta
-                );
-
-            }
-
-        }
-
-    }
-);
-
-/* =========================
-   INTERACCIONES
-========================= */
+// =========================
+// INTERACCIONES
+// =========================
 
 client.on(
     'interactionCreate',
     async interaction => {
 
-        if (
-            !interaction.isChatInputCommand()
-        ) {
-            return;
-        }
-
-        const comando =
-            interaction.commandName;
-
         try {
 
-            /* =========================
-               IA
-            ========================= */
+            if (
+                !interaction.isChatInputCommand()
+            ) {
+                return;
+            }
+
+
+            const comando =
+                interaction.commandName;
+
+
+            // =========================
+            // IA
+            // =========================
 
             if (
                 comando === 'ia' ||
@@ -392,21 +422,8 @@ client.on(
             ) {
 
                 const pregunta =
-                    interaction.options.getString(
-                        'pregunta'
-                    );
-
-                if (
-                    !pregunta
-                ) {
-
-                    return interaction.reply({
-                        content:
-                            '❌ Debes escribir una pregunta.',
-                        ephemeral: true
-                    });
-
-                }
+                    interaction.options
+                        .getString('pregunta', true);
 
                 const idioma =
                     obtenerIdioma(
@@ -415,212 +432,218 @@ client.on(
 
                 await interaction.deferReply();
 
+
                 const respuesta =
-                    await preguntarGemini(
+                    await preguntarGroq(
                         pregunta,
                         idioma
                     );
 
-                const texto =
-                    String(respuesta);
 
                 if (
-                    texto.length <= 1900
+                    respuesta.length <= 2000
                 ) {
 
-                    return interaction.editReply(
-                        `🤖 **Milo**\n\n${texto}`
-                    );
+                    await interaction.editReply({
+                        content: respuesta
+                    });
 
-                }
+                } else {
 
-                const partes = [];
+                    const partes = [];
 
-                for (
-                    let i = 0;
-                    i < texto.length;
-                    i += 1900
-                ) {
+                    for (
+                        let i = 0;
+                        i < respuesta.length;
+                        i += 1900
+                    ) {
 
-                    partes.push(
-                        texto.substring(
-                            i,
-                            i + 1900
-                        )
-                    );
+                        partes.push(
+                            respuesta.slice(
+                                i,
+                                i + 1900
+                            )
+                        );
 
-                }
+                    }
 
-                await interaction.editReply(
-                    `🤖 **Milo**\n\n${partes[0]}`
-                );
+                    await interaction.editReply({
+                        content: partes.shift()
+                    });
 
-                for (
-                    let i = 1;
-                    i < partes.length;
-                    i++
-                ) {
+                    for (
+                        const parte of partes
+                    ) {
 
-                    await interaction.followUp(
-                        partes[i]
-                    );
+                        await interaction.followUp({
+                            content: parte
+                        });
+
+                    }
 
                 }
 
                 return;
-
             }
 
-            /* =========================
-               IMAGEN
-            ========================= */
 
-            if (
-                comando === 'imagen'
-            ) {
+            // =========================
+            // CHAT
+            // =========================
+
+            if (comando === 'chat') {
+
+                await interaction.reply({
+
+                    content:
+                        '🧠 **Chat con Milo**\n\n' +
+                        'Puedes hablar conmigo directamente usando:\n' +
+                        '`Milo <pregunta>`\n\n' +
+                        'También puedes usar `/ia`.'
+
+                });
+
+                return;
+            }
+
+
+            // =========================
+            // REINICIAR
+            // =========================
+
+            if (comando === 'reiniciar') {
+
+                await interaction.reply({
+
+                    content:
+                        '🔄 Tu conversación con Milo ha sido reiniciada.'
+
+                });
+
+                return;
+            }
+
+
+            // =========================
+            // IMAGEN
+            // =========================
+
+            if (comando === 'imagen') {
 
                 const prompt =
-                    interaction.options.getString(
-                        'prompt'
-                    );
-
-                if (
-                    !prompt
-                ) {
-
-                    return interaction.reply({
-                        content:
-                            '❌ Debes describir la imagen que quieres generar.',
-                        ephemeral: true
-                    });
-
-                }
-
-                const limite =
-                    obtenerLimiteImagenes();
-
-                if (
-                    limite.restantes <= 0
-                ) {
-
-                    return interaction.reply({
-                        content:
-                            '❌ Milo ya utilizó las 3 imágenes disponibles hoy.',
-                        ephemeral: true
-                    });
-
-                }
+                    interaction.options
+                        .getString('prompt', true);
 
                 await interaction.deferReply();
 
-                const buffer =
+                const imagen =
                     await generarImagen(
                         prompt
                     );
 
                 const archivo =
                     new AttachmentBuilder(
-                        buffer,
+                        imagen,
                         {
-                            name:
-                                'milo-imagen.png'
+                            name: 'milo-imagen.png'
                         }
                     );
+
+                const limite =
+                    obtenerLimiteImagenes();
 
                 await interaction.editReply({
 
                     content:
                         `🖼️ **Imagen generada por Milo**\n\n` +
-                        `📝 ${prompt}\n\n` +
-                        `📊 Imágenes restantes hoy: ${
-                            Math.max(
-                                0,
-                                limite.restantes - 1
-                            )
-                        }`,
+                        `📊 Generaciones restantes hoy: **${limite.restantes}**`,
 
-                    files: [
-                        archivo
-                    ]
+                    files: [archivo]
 
                 });
 
                 return;
-
             }
 
-            /* =========================
-               IDIOMA
-            ========================= */
 
-            if (
-                comando === 'idioma'
-            ) {
+            // =========================
+            // IDIOMA
+            // =========================
+
+            if (comando === 'idioma') {
 
                 const idioma =
-                    interaction.options.getString(
-                        'idioma'
-                    );
+                    interaction.options
+                        .getString('idioma', true);
+
+                if (
+                    !obtenerIdiomas()[idioma]
+                ) {
+
+                    await interaction.reply({
+                        content:
+                            '❌ Ese idioma no está disponible.',
+                        ephemeral: true
+                    });
+
+                    return;
+                }
 
                 establecerIdioma(
                     interaction.user.id,
                     idioma
                 );
 
-                return interaction.reply({
+                await interaction.reply({
 
                     content:
-                        `🌐 Tu idioma ahora es **${obtenerNombreIdioma(
-                            idioma
-                        )}**.`,
-
-                    ephemeral: true
+                        `🌐 Tu idioma ahora es **${obtenerNombreIdioma(idioma)}**.`
 
                 });
 
+                return;
             }
 
-            /* =========================
-               CALCULAR
-            ========================= */
 
-            if (
-                comando === 'calcular'
-            ) {
+            // =========================
+            // CALCULAR
+            // =========================
+
+            if (comando === 'calcular') {
 
                 const operacion =
-                    interaction.options.getString(
-                        'operacion'
-                    );
+                    interaction.options
+                        .getString('operacion', true);
 
                 const resultado =
                     calcularOperacion(
                         operacion
                     );
 
-                return interaction.reply(
-                    `🧮 **Resultado:** \`${resultado}\``
-                );
+                await interaction.reply({
 
+                    content:
+                        `🧮 **Resultado**\n\`${resultado}\``
+
+                });
+
+                return;
             }
 
-            /* =========================
-               TRADUCIR
-            ========================= */
 
-            if (
-                comando === 'traducir'
-            ) {
+            // =========================
+            // TRADUCIR
+            // =========================
+
+            if (comando === 'traducir') {
 
                 const texto =
-                    interaction.options.getString(
-                        'texto'
-                    );
+                    interaction.options
+                        .getString('texto', true);
 
                 const idioma =
-                    interaction.options.getString(
-                        'idioma'
-                    );
+                    interaction.options
+                        .getString('idioma', true);
 
                 await interaction.deferReply();
 
@@ -630,85 +653,79 @@ client.on(
                         idioma
                     );
 
-                return interaction.editReply(
-                    `🌐 **Traducción**\n\n${resultado}`
-                );
+                await interaction.editReply({
+                    content: resultado
+                });
 
+                return;
             }
 
-            /* =========================
-               RESUMIR
-            ========================= */
 
-            if (
-                comando === 'resumir'
-            ) {
+            // =========================
+            // RESUMIR
+            // =========================
+
+            if (comando === 'resumir') {
 
                 const texto =
-                    interaction.options.getString(
-                        'texto'
-                    );
+                    interaction.options
+                        .getString('texto', true);
 
                 await interaction.deferReply();
 
                 const resultado =
-                    await resumir(
-                        texto
-                    );
+                    await resumir(texto);
 
-                return interaction.editReply(
-                    `📝 **Resumen**\n\n${resultado}`
-                );
+                await interaction.editReply({
+                    content: resultado
+                });
 
+                return;
             }
 
-            /* =========================
-               HORA
-            ========================= */
 
-            if (
-                comando === 'hora'
-            ) {
+            // =========================
+            // HORA
+            // =========================
+
+            if (comando === 'hora') {
 
                 const zona =
-                    interaction.options.getString(
-                        'zona'
-                    ) ||
+                    interaction.options
+                        .getString('zona') ||
                     'America/Bogota';
 
-                const hora =
-                    obtenerHora(
-                        zona
-                    );
+                const resultado =
+                    obtenerHora(zona);
 
-                return interaction.reply(
-                    `🕐 **Hora actual**\n\n${hora}`
-                );
+                await interaction.reply({
 
+                    content:
+                        `🕐 **Hora**\n${resultado}`
+
+                });
+
+                return;
             }
 
-            /* =========================
-               CONVERTIR
-            ========================= */
 
-            if (
-                comando === 'convertir'
-            ) {
+            // =========================
+            // CONVERTIR
+            // =========================
+
+            if (comando === 'convertir') {
 
                 const cantidad =
-                    interaction.options.getNumber(
-                        'cantidad'
-                    );
+                    interaction.options
+                        .getNumber('cantidad', true);
 
                 const de =
-                    interaction.options.getString(
-                        'de'
-                    );
+                    interaction.options
+                        .getString('de', true);
 
                 const a =
-                    interaction.options.getString(
-                        'a'
-                    );
+                    interaction.options
+                        .getString('a', true);
 
                 const resultado =
                     convertir(
@@ -717,20 +734,275 @@ client.on(
                         a
                     );
 
-                return interaction.reply(
-                    `🔄 **Conversión**\n\n` +
-                    `\`${cantidad} ${de}\` = \`${resultado} ${a}\``
-                );
+                await interaction.reply({
 
+                    content:
+                        `🔄 **Conversión**\n` +
+                        `${cantidad} ${de} = **${resultado} ${a}**`
+
+                });
+
+                return;
             }
 
-            /* =========================
-               MODERACIÓN GLOBAL
-            ========================= */
 
-            if (
-                comando === 'ban-global'
-            ) {
+            // =========================
+            // PING
+            // =========================
+
+            if (comando === 'ping') {
+
+                await interaction.reply({
+
+                    content:
+                        `🏓 **Pong!**\n` +
+                        `Latencia: **${client.ws.ping}ms**`
+
+                });
+
+                return;
+            }
+
+
+            // =========================
+            // ESTADO
+            // =========================
+
+            if (comando === 'estado') {
+
+                await interaction.reply({
+
+                    content:
+                        `🟢 **Milo está funcionando**\n\n` +
+                        `🧠 IA: **Groq**\n` +
+                        `🤖 Modelo: **${MODELO}**\n` +
+                        `🌐 Servidores: **${client.guilds.cache.size}**\n` +
+                        `🏓 Ping: **${client.ws.ping}ms**`
+
+                });
+
+                return;
+            }
+
+
+            // =========================
+            // MODELO
+            // =========================
+
+            if (comando === 'modelo') {
+
+                await interaction.reply({
+
+                    content:
+                        `🧠 **Modelo actual**\n\`${MODELO}\``
+
+                });
+
+                return;
+            }
+
+
+            // =========================
+            // SERVIDOR
+            // =========================
+
+            if (comando === 'servidor') {
+
+                if (!interaction.guild) {
+
+                    await interaction.reply({
+                        content:
+                            '❌ Este comando debe utilizarse dentro de un servidor.',
+                        ephemeral: true
+                    });
+
+                    return;
+                }
+
+                await interaction.reply({
+
+                    content:
+                        `🏠 **Servidor**\n\n` +
+                        `📛 Nombre: **${interaction.guild.name}**\n` +
+                        `👥 Miembros: **${interaction.guild.memberCount}**\n` +
+                        `🆔 ID: \`${interaction.guild.id}\``
+
+                });
+
+                return;
+            }
+
+
+            // =========================
+            // USUARIO
+            // =========================
+
+            if (comando === 'usuario') {
+
+                await interaction.reply({
+
+                    content:
+                        `👤 **Tu información**\n\n` +
+                        `Nombre: **${interaction.user.username}**\n` +
+                        `ID: \`${interaction.user.id}\``
+
+                });
+
+                return;
+            }
+
+
+            // =========================
+            // AVATAR
+            // =========================
+
+            if (comando === 'avatar') {
+
+                await interaction.reply({
+
+                    content:
+                        interaction.user.displayAvatarURL({
+                            size: 1024,
+                            extension: 'png'
+                        })
+
+                });
+
+                return;
+            }
+
+
+            // =========================
+            // SOPORTE
+            // =========================
+
+            if (comando === 'soporte') {
+
+                await interaction.reply({
+
+                    content:
+                        `🛠️ **Soporte de Milo**\n\n` +
+                        `Únete al servidor de soporte:\n${SUPPORT_SERVER}`
+
+                });
+
+                return;
+            }
+
+
+            // =========================
+            // INVITAR
+            // =========================
+
+            if (comando === 'invitar') {
+
+                const url =
+                    `https://discord.com/oauth2/authorize?client_id=${client.user.id}&permissions=8&scope=bot%20applications.commands`;
+
+                await interaction.reply({
+
+                    content:
+                        `🤖 **Invita a Milo**\n\n${url}`
+
+                });
+
+                return;
+            }
+
+
+            // =========================
+            // ESTADÍSTICAS
+            // =========================
+
+            if (comando === 'estadisticas') {
+
+                await interaction.reply({
+
+                    content:
+                        `📊 **Estadísticas de Milo**\n\n` +
+                        `🌐 Servidores: **${client.guilds.cache.size}**\n` +
+                        `🧠 Modelo: **${MODELO}**\n` +
+                        `🏓 Ping: **${client.ws.ping}ms**\n` +
+                        `🖼️ Imágenes restantes hoy: **${obtenerLimiteImagenes().restantes}**`
+
+                });
+
+                return;
+            }
+
+
+            // =========================
+            // AYUDA
+            // =========================
+
+            if (comando === 'ayuda') {
+
+                const embed =
+                    new EmbedBuilder()
+
+                        .setTitle('🤖 Milo — Ayuda')
+
+                        .setDescription(
+                            'Aquí tienes los principales comandos de Milo.'
+                        )
+
+                        .addFields(
+
+                            {
+                                name: '🧠 IA',
+                                value:
+                                    '`/ia` `/preguntar` `/chat` `/reiniciar`'
+                            },
+
+                            {
+                                name: '🖼️ Imágenes',
+                                value:
+                                    '`/imagen`'
+                            },
+
+                            {
+                                name: '🌐 Idiomas',
+                                value:
+                                    '`/idioma`'
+                            },
+
+                            {
+                                name: '🔧 Utilidades',
+                                value:
+                                    '`/calcular` `/traducir` `/resumir` `/hora` `/convertir`'
+                            },
+
+                            {
+                                name: '📊 Información',
+                                value:
+                                    '`/estado` `/modelo` `/servidor` `/usuario` `/avatar` `/ping` `/estadisticas`'
+                            },
+
+                            {
+                                name: '🛠️ Milo',
+                                value:
+                                    '`/soporte` `/invitar`'
+                            }
+
+                        )
+
+                        .setFooter({
+                            text: 'Milo • IA para Discord'
+                        });
+
+                await interaction.reply({
+                    embeds: [embed]
+                });
+
+                return;
+            }
+
+
+            // =========================
+            // BAN GLOBAL
+            // =========================
+
+            if (comando === 'ban-global') {
 
                 if (
                     !puedeUsarGlobal(
@@ -738,57 +1010,65 @@ client.on(
                     )
                 ) {
 
-                    return interaction.reply({
+                    await interaction.reply({
+
                         content:
-                            '❌ No tienes permiso para utilizar este comando.',
+                            '❌ No tienes permisos para utilizar este comando.',
+
                         ephemeral: true
+
                     });
 
+                    return;
                 }
 
                 const usuarioId =
-                    interaction.options.getString(
-                        'usuario'
-                    );
+                    interaction.options
+                        .getString('usuario', true);
 
                 const razon =
-                    interaction.options.getString(
-                        'razon'
-                    );
+                    interaction.options
+                        .getString('razon', true);
 
-                const tiempo =
-                    interaction.options.getString(
-                        'tiempo'
-                    );
+                const duracion =
+                    interaction.options
+                        .getString('duracion') ||
+                    'permanente';
 
                 const prueba =
-                    interaction.options.getAttachment(
-                        'prueba'
-                    );
+                    interaction.options
+                        .getString('prueba') ||
+                    'No proporcionada';
 
                 await interaction.deferReply({
                     ephemeral: true
                 });
 
                 await banGlobal(
-                    client,
                     usuarioId,
                     razon,
-                    tiempo,
+                    duracion,
                     prueba,
                     interaction.user,
                     interaction.guild
                 );
 
-                return interaction.editReply(
-                    '🔨 El usuario fue procesado para el baneo global.'
-                );
+                await interaction.editReply({
 
+                    content:
+                        `🔨 Usuario \`${usuarioId}\` añadido al baneo global.`
+
+                });
+
+                return;
             }
 
-            if (
-                comando === 'unban-global'
-            ) {
+
+            // =========================
+            // UNBAN GLOBAL
+            // =========================
+
+            if (comando === 'unban-global') {
 
                 if (
                     !puedeUsarGlobal(
@@ -796,479 +1076,143 @@ client.on(
                     )
                 ) {
 
-                    return interaction.reply({
+                    await interaction.reply({
+
                         content:
-                            '❌ No tienes permiso para utilizar este comando.',
+                            '❌ No tienes permisos para utilizar este comando.',
+
                         ephemeral: true
+
                     });
 
+                    return;
                 }
 
                 const usuarioId =
-                    interaction.options.getString(
-                        'usuario'
-                    );
+                    interaction.options
+                        .getString('usuario', true);
 
                 const razon =
-                    interaction.options.getString(
-                        'razon'
-                    );
-
-                const prueba =
-                    interaction.options.getAttachment(
-                        'prueba'
-                    );
+                    interaction.options
+                        .getString('razon', true);
 
                 await interaction.deferReply({
                     ephemeral: true
                 });
 
                 await unbanGlobal(
-                    client,
                     usuarioId,
                     razon,
-                    prueba,
                     interaction.user,
                     interaction.guild
                 );
 
-                return interaction.editReply(
-                    '🔓 El usuario fue procesado para el desbloqueo global.'
-                );
+                await interaction.editReply({
 
-            }
+                    content:
+                        `🔓 Usuario \`${usuarioId}\` eliminado del baneo global.`
 
-            /* =========================
-               PING
-            ========================= */
-
-            if (
-                comando === 'ping'
-            ) {
-
-                return interaction.reply(
-                    `🏓 **Pong!**\nLatencia: \`${client.ws.ping}ms\``
-                );
-
-            }
-
-            /* =========================
-               ESTADO
-            ========================= */
-
-            if (
-                comando === 'estado'
-            ) {
-
-                const limite =
-                    obtenerLimiteImagenes();
-
-                const embed =
-                    new EmbedBuilder()
-                        .setTitle(
-                            '🤖 Estado de Milo'
-                        )
-                        .setDescription(
-                            'Milo está funcionando correctamente.'
-                        )
-                        .addFields(
-
-                            {
-                                name:
-                                    '🧠 Modelo',
-                                value:
-                                    `\`${modelo}\``,
-                                inline: true
-                            },
-
-                            {
-                                name:
-                                    '🌐 Servidores',
-                                value:
-                                    `\`${client.guilds.cache.size}\``,
-                                inline: true
-                            },
-
-                            {
-                                name:
-                                    '🖼️ Imágenes',
-                                value:
-                                    `${limite.usadas}/${limite.limite}`,
-                                inline: true
-                            },
-
-                            {
-                                name:
-                                    '🏓 Ping',
-                                value:
-                                    `${client.ws.ping}ms`,
-                                inline: true
-                            }
-
-                        )
-                        .setTimestamp();
-
-                return interaction.reply({
-                    embeds: [embed]
                 });
 
-            }
-
-            /* =========================
-               MODELO
-            ========================= */
-
-            if (
-                comando === 'modelo'
-            ) {
-
-                return interaction.reply(
-                    `🧠 **Modelo de Milo:**\n\`${modelo}\``
-                );
-
-            }
-
-            /* =========================
-               SERVIDOR
-            ========================= */
-
-            if (
-                comando === 'servidor'
-            ) {
-
-                const guild =
-                    interaction.guild;
-
-                if (!guild) {
-
-                    return interaction.reply({
-                        content:
-                            '❌ Este comando solo puede utilizarse dentro de un servidor.',
-                        ephemeral: true
-                    });
-
-                }
-
-                const embed =
-                    new EmbedBuilder()
-                        .setTitle(
-                            `📊 ${guild.name}`
-                        )
-                        .addFields(
-
-                            {
-                                name:
-                                    '🆔 ID',
-                                value:
-                                    guild.id,
-                                inline: true
-                            },
-
-                            {
-                                name:
-                                    '👥 Miembros',
-                                value:
-                                    `${guild.memberCount}`,
-                                inline: true
-                            },
-
-                            {
-                                name:
-                                    '📅 Creado',
-                                value:
-                                    `<t:${Math.floor(
-                                        guild.createdTimestamp / 1000
-                                    )}:F>`,
-                                inline: false
-                            }
-
-                        )
-                        .setTimestamp();
-
-                return interaction.reply({
-                    embeds: [embed]
-                });
-
-            }
-
-            /* =========================
-               USUARIO
-            ========================= */
-
-            if (
-                comando === 'usuario'
-            ) {
-
-                const usuario =
-                    interaction.user;
-
-                const embed =
-                    new EmbedBuilder()
-                        .setTitle(
-                            '👤 Información del usuario'
-                        )
-                        .setThumbnail(
-                            usuario.displayAvatarURL({
-                                size: 256
-                            })
-                        )
-                        .addFields(
-
-                            {
-                                name:
-                                    'Nombre',
-                                value:
-                                    usuario.tag,
-                                inline: true
-                            },
-
-                            {
-                                name:
-                                    'ID',
-                                value:
-                                    usuario.id,
-                                inline: true
-                            },
-
-                            {
-                                name:
-                                    'Cuenta creada',
-                                value:
-                                    `<t:${Math.floor(
-                                        usuario.createdTimestamp / 1000
-                                    )}:F>`,
-                                inline: false
-                            }
-
-                        );
-
-                return interaction.reply({
-                    embeds: [embed]
-                });
-
-            }
-
-            /* =========================
-               AVATAR
-            ========================= */
-
-            if (
-                comando === 'avatar'
-            ) {
-
-                const usuario =
-                    interaction.options.getUser(
-                        'usuario'
-                    ) ||
-                    interaction.user;
-
-                return interaction.reply(
-                    usuario.displayAvatarURL({
-                        size: 4096,
-                        extension: 'png'
-                    })
-                );
-
-            }
-
-            /* =========================
-               AYUDA
-            ========================= */
-
-            if (
-                comando === 'ayuda'
-            ) {
-
-                const embed =
-                    new EmbedBuilder()
-                        .setTitle(
-                            '🤖 Ayuda de Milo'
-                        )
-                        .setDescription(
-                            'Estos son los comandos disponibles.'
-                        )
-                        .addFields(
-
-                            {
-                                name:
-                                    '🤖 IA',
-                                value:
-                                    '`/ia` `/preguntar` `/chat` `/reiniciar`'
-                            },
-
-                            {
-                                name:
-                                    '🖼️ Imágenes',
-                                value:
-                                    '`/imagen`'
-                            },
-
-                            {
-                                name:
-                                    '🌐 Idiomas',
-                                value:
-                                    '`/idioma`'
-                            },
-
-                            {
-                                name:
-                                    '🛡️ Moderación',
-                                value:
-                                    '`/ban-global` `/unban-global`'
-                            },
-
-                            {
-                                name:
-                                    '📊 Información',
-                                value:
-                                    '`/ayuda` `/estado` `/modelo` `/servidor` `/usuario` `/avatar` `/ping`'
-                            },
-
-                            {
-                                name:
-                                    '🔧 Utilidades',
-                                value:
-                                    '`/calcular` `/traducir` `/resumir` `/hora` `/convertir`'
-                            },
-
-                            {
-                                name:
-                                    '👑 Milo',
-                                value:
-                                    '`/soporte` `/invitar` `/estadisticas`'
-                            }
-
-                        )
-                        .setTimestamp();
-
-                return interaction.reply({
-                    embeds: [embed]
-                });
-
-            }
-
-            /* =========================
-               COMANDOS MILO
-            ========================= */
-
-            if (
-                comando === 'soporte'
-            ) {
-
-                return interaction.reply(
-                    '🛠️ **Soporte de Milo**\nhttps://discord.gg/csnebvXgSv'
-                );
-
-            }
-
-            if (
-                comando === 'invitar'
-            ) {
-
-                return interaction.reply(
-                    '🤖 Puedes invitar a Milo desde el enlace de invitación del bot.'
-                );
-
-            }
-
-            if (
-                comando === 'estadisticas'
-            ) {
-
-                return interaction.reply(
-                    `📊 **Estadísticas de Milo**\n\n` +
-                    `🌐 Servidores: \`${client.guilds.cache.size}\`\n` +
-                    `👥 Usuarios aproximados: \`${client.guilds.cache.reduce(
-                        (total, guild) =>
-                            total + guild.memberCount,
-                        0
-                    )}\`\n` +
-                    `🏓 Ping: \`${client.ws.ping}ms\``
-                );
-
+                return;
             }
 
         } catch (error) {
 
             console.error(
-                `❌ Error en /${comando}:`,
-                error
+                '❌ ERROR EN INTERACCIÓN:'
             );
 
+            console.error(error);
+
             const mensaje =
-                '❌ Ocurrió un error al ejecutar este comando.';
+                `❌ ${error.message || 'Ocurrió un error.'}`;
 
-            if (
-                interaction.deferred
-            ) {
 
-                return interaction.editReply(
-                    mensaje
-                ).catch(() => {});
+            try {
 
-            }
+                if (
+                    interaction.deferred
+                ) {
 
-            if (
-                interaction.replied
-            ) {
+                    await interaction.editReply({
+                        content: mensaje
+                    });
 
-                return interaction.followUp({
-                    content: mensaje,
-                    ephemeral: true
-                }).catch(() => {});
+                } else if (
+                    interaction.replied
+                ) {
 
-            }
+                    await interaction.followUp({
 
-            return interaction.reply({
-                content: mensaje,
-                ephemeral: true
-            }).catch(() => {});
+                        content: mensaje,
+                        ephemeral: true
+
+                    });
+
+                } else {
+
+                    await interaction.reply({
+
+                        content: mensaje,
+                        ephemeral: true
+
+                    });
+
+                }
+
+            } catch {}
 
         }
 
     }
 );
 
- /* =========================
-   ERROR GENERAL
-========================= */
+// =========================
+// ERRORES
+// =========================
 
 process.on(
     'unhandledRejection',
     error => {
 
         console.error(
-            '❌ Unhandled Rejection:',
-            error
+            '❌ Unhandled Rejection:'
         );
+
+        console.error(error);
 
     }
 );
+
 
 process.on(
     'uncaughtException',
     error => {
 
         console.error(
-            '❌ Uncaught Exception:',
-            error
+            '❌ Uncaught Exception:'
         );
+
+        console.error(error);
 
     }
 );
 
-/* =========================
-   INICIAR BOT
-========================= */
 
-if (!TOKEN) {
+// =========================
+// LOGIN
+// =========================
+
+if (!process.env.DISCORD_TOKEN) {
 
     console.error(
-        '❌ Falta DISCORD_TOKEN en el archivo .env'
+        '❌ DISCORD_TOKEN no está configurado.'
     );
 
     process.exit(1);
-
 }
 
-client.login(TOKEN);                   
+client.login(
+    process.env.DISCORD_TOKEN
+);
