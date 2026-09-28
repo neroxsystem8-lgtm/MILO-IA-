@@ -1,116 +1,97 @@
-const { calcular } = require('mathjs');
-const { preguntarGemini } = require('./gemini');
+const { evaluate } = require('mathjs');
+const { preguntarGroq } = require('./groq');
 
-/* =========================
-   CALCULAR
-========================= */
+// =========================
+// 🧮 CALCULADORA
+// =========================
 
 function calcularOperacion(operacion) {
 
-    if (
-        !operacion ||
-        !operacion.trim()
-    ) {
-        throw new Error(
-            'Debes proporcionar una operación.'
-        );
+    if (!operacion || !operacion.trim()) {
+        throw new Error('Debes proporcionar una operación.');
     }
 
     try {
 
-        const resultado =
-            calcular(operacion);
+        const resultado = evaluate(operacion);
 
         return String(resultado);
 
-    } catch {
+    } catch (error) {
 
         throw new Error(
-            'No pude calcular esa operación. Revisa la expresión.'
+            'No pude calcular esa operación. Revisa que esté escrita correctamente.'
         );
-
     }
-
 }
 
-/* =========================
-   TRADUCIR
-========================= */
 
-async function traducir(
-    texto,
-    idioma
-) {
+// =========================
+// 🌐 TRADUCIR
+// =========================
 
-    if (
-        !texto ||
-        !texto.trim()
-    ) {
-        throw new Error(
-            'Debes proporcionar el texto que quieres traducir.'
-        );
+async function traducir(texto, idioma) {
+
+    if (!texto || !texto.trim()) {
+        throw new Error('Debes proporcionar el texto que quieres traducir.');
     }
 
-    if (
-        !idioma ||
-        !idioma.trim()
-    ) {
-        throw new Error(
-            'Debes indicar el idioma de destino.'
-        );
+    if (!idioma || !idioma.trim()) {
+        throw new Error('Debes indicar el idioma al que quieres traducir.');
     }
 
-    return await preguntarGemini(
-        `Traduce el siguiente texto al idioma indicado.
+    const respuesta = await preguntarGroq(
+        `Traduce el siguiente texto al idioma "${idioma}".
 
-IDIOMA DE DESTINO:
-${idioma}
+REGLAS:
+- Conserva el significado original.
+- Conserva el tono del texto.
+- No agregues explicaciones.
+- Devuelve únicamente la traducción.
 
 TEXTO:
-${texto}
-
-Entrega únicamente la traducción, sin explicaciones innecesarias.`,
+${texto}`,
         idioma
     );
 
+    return respuesta;
 }
 
-/* =========================
-   RESUMIR
-========================= */
 
-async function resumir(
-    texto
-) {
+// =========================
+// 📝 RESUMIR
+// =========================
 
-    if (
-        !texto ||
-        !texto.trim()
-    ) {
-        throw new Error(
-            'Debes proporcionar el texto que quieres resumir.'
-        );
+async function resumir(texto) {
+
+    if (!texto || !texto.trim()) {
+        throw new Error('Debes proporcionar el texto que quieres resumir.');
     }
 
-    return await preguntarGemini(
-        `Resume el siguiente texto de forma clara y sencilla.
+    const respuesta = await preguntarGroq(
+        `Resume el siguiente texto de forma clara y precisa.
 
-Texto:
-${texto}
+REGLAS:
+- Conserva las ideas principales.
+- Elimina información repetitiva.
+- No inventes información.
+- Utiliza un resumen fácil de entender.
+- Responde en español.
 
-Conserva las ideas principales y elimina información innecesaria.`,
+TEXTO:
+${texto}`,
         'es'
     );
 
+    return respuesta;
 }
 
-/* =========================
-   HORA
-========================= */
 
-function obtenerHora(
-    zona = 'America/Bogota'
-) {
+// =========================
+// 🕐 HORA
+// =========================
+
+function obtenerHora(zona = 'America/Bogota') {
 
     try {
 
@@ -123,141 +104,142 @@ function obtenerHora(
             }
         ).format(new Date());
 
-    } catch {
+    } catch (error) {
 
         throw new Error(
-            'La zona horaria indicada no es válida.'
+            'La zona horaria proporcionada no es válida.'
         );
-
     }
-
 }
 
-/* =========================
-   CONVERTIR
-========================= */
 
-function convertir(
-    cantidad,
-    de,
-    a
-) {
+// =========================
+// 🔄 CONVERSIONES
+// =========================
 
-    if (
-        cantidad === undefined ||
-        cantidad === null
-    ) {
-        throw new Error(
-            'Debes indicar una cantidad.'
-        );
+function convertir(cantidad, de, a) {
+
+    const valor = Number(cantidad);
+
+    if (Number.isNaN(valor)) {
+        throw new Error('La cantidad debe ser un número.');
     }
 
-    if (
-        !de ||
-        !a
-    ) {
-        throw new Error(
-            'Debes indicar la unidad de origen y la unidad de destino.'
-        );
-    }
+    const origen = de.toLowerCase();
+    const destino = a.toLowerCase();
 
-    const valor =
-        Number(cantidad);
+    // =========================
+    // LONGITUD
+    // =========================
 
-    if (
-        !Number.isFinite(valor)
-    ) {
-        throw new Error(
-            'La cantidad debe ser un número válido.'
-        );
-    }
-
-    const unidades = {
-
-        mm: {
-            m: 0.001,
-            cm: 0.1,
-            mm: 1,
-            km: 0.000001
-        },
-
-        cm: {
-            m: 0.01,
-            cm: 1,
-            mm: 10,
-            km: 0.00001
-        },
-
-        m: {
-            m: 1,
-            cm: 100,
-            mm: 1000,
-            km: 0.001
-        },
-
-        km: {
-            m: 1000,
-            cm: 100000,
-            mm: 1000000,
-            km: 1
-        },
-
-        g: {
-            g: 1,
-            kg: 0.001,
-            mg: 1000
-        },
-
-        kg: {
-            g: 1000,
-            kg: 1,
-            mg: 1000000
-        },
-
-        mg: {
-            g: 0.001,
-            kg: 0.000001,
-            mg: 1
-        }
-
+    const longitud = {
+        mm: 0.001,
+        cm: 0.01,
+        m: 1,
+        km: 1000
     };
 
-    const origen =
-        de.toLowerCase().trim();
-
-    const destino =
-        a.toLowerCase().trim();
-
     if (
-        !unidades[origen] ||
-        !unidades[origen][destino]
+        longitud[origen] !== undefined &&
+        longitud[destino] !== undefined
     ) {
 
-        throw new Error(
-            `No puedo convertir de ${de} a ${a}.`
-        );
+        const metros =
+            valor * longitud[origen];
 
+        return metros / longitud[destino];
     }
 
-    return valor *
-        unidades[origen][destino];
 
+    // =========================
+    // PESO
+    // =========================
+
+    const peso = {
+        mg: 0.000001,
+        g: 0.001,
+        kg: 1
+    };
+
+    if (
+        peso[origen] !== undefined &&
+        peso[destino] !== undefined
+    ) {
+
+        const kilogramos =
+            valor * peso[origen];
+
+        return kilogramos / peso[destino];
+    }
+
+
+    // =========================
+    // TEMPERATURA
+    // =========================
+
+    if (
+        origen === 'c' &&
+        destino === 'f'
+    ) {
+
+        return (valor * 9 / 5) + 32;
+    }
+
+    if (
+        origen === 'f' &&
+        destino === 'c'
+    ) {
+
+        return (valor - 32) * 5 / 9;
+    }
+
+    if (
+        origen === 'c' &&
+        destino === 'k'
+    ) {
+
+        return valor + 273.15;
+    }
+
+    if (
+        origen === 'k' &&
+        destino === 'c'
+    ) {
+
+        return valor - 273.15;
+    }
+
+    if (
+        origen === 'f' &&
+        destino === 'k'
+    ) {
+
+        return (valor - 32) * 5 / 9 + 273.15;
+    }
+
+    if (
+        origen === 'k' &&
+        destino === 'f'
+    ) {
+
+        return (valor - 273.15) * 9 / 5 + 32;
+    }
+
+
+    throw new Error(
+        `No puedo convertir de "${de}" a "${a}".`
+    );
 }
 
-/* =========================
-   EXPORTAR
-========================= */
+
+// =========================
+// 📦 EXPORTAR
+// =========================
 
 module.exports = {
-
     calcularOperacion,
-
     traducir,
-
     resumir,
-
     obtenerHora,
-
     convertir
-
 };
