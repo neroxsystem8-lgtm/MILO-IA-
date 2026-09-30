@@ -13,24 +13,27 @@ const INSULTOS = [
     "cabron",
     "cabrón",
     "cabrona",
-    "mamón",
     "mamon",
+    "mamón",
     "gilipollas",
     "tarado",
     "tarada",
-    "estupida",
-    "estúpida",
     "marica",
-    "maricón",
     "maricon",
+    "maricón",
     "zorra",
     "perra",
     "puta",
     "puto"
 ];
 
-// Normaliza el texto para detectar variaciones
+
+// ========================================
+// NORMALIZAR TEXTO
+// ========================================
+
 function normalizar(texto) {
+
     return texto
         .toLowerCase()
         .normalize("NFD")
@@ -40,55 +43,132 @@ function normalizar(texto) {
         .trim();
 }
 
-// Comprueba si el mensaje contiene un insulto
-function contieneInsulto(texto) {
-    if (!texto || typeof texto !== "string") {
-        return false;
-    }
 
-    const contenido = normalizar(texto);
+// ========================================
+// DETECTAR INSULTO
+// ========================================
 
-    return INSULTOS.some(insulto => {
-        const palabra = normalizar(insulto);
+function detectarInsulto(texto) {
 
-        return new RegExp(`(^|\\s)${palabra}(?=\\s|$)`, "i")
-            .test(contenido);
-    });
-}
-
-// Obtiene el insulto detectado
-function obtenerInsulto(texto) {
-    if (!texto || typeof texto !== "string") {
+    if (
+        !texto ||
+        typeof texto !== "string"
+    ) {
         return null;
     }
 
-    const contenido = normalizar(texto);
+    const contenido =
+        normalizar(texto);
 
-    return INSULTOS.find(insulto => {
-        const palabra = normalizar(insulto);
+    for (
+        const insulto
+        of INSULTOS
+    ) {
 
-        return new RegExp(`(^|\\s)${palabra}(?=\\s|$)`, "i")
-            .test(contenido);
-    }) || null;
+        const palabra =
+            normalizar(insulto);
+
+        const expresion =
+            new RegExp(
+                `(^|\\s)${palabra}(?=\\s|$)`,
+                "i"
+            );
+
+        if (
+            expresion.test(
+                contenido
+            )
+        ) {
+            return insulto;
+        }
+    }
+
+    return null;
 }
 
-// Respuesta de MILO
-function respuestaAntiInsulto() {
-    const respuestas = [
-        "🤨 Vamos a mantener el respeto, ¿sí?",
-        "🛡️ Prefiero que mantengamos una conversación con respeto.",
-        "🙂 Podemos hablar sin insultos.",
-        "⚠️ Ese tipo de lenguaje no es necesario. Sigamos con respeto.",
-        "💙 Respeto ante todo. ¿En qué puedo ayudarte?"
-    ];
 
-    return respuestas[Math.floor(Math.random() * respuestas.length)];
+// ========================================
+// REGISTRAR INFRACCIÓN
+// ========================================
+
+const infracciones =
+    new Map();
+
+function registrarInfraccion(
+    guildId,
+    userId,
+    insulto
+) {
+
+    const clave =
+        `${guildId}:${userId}`;
+
+    const actual =
+        infracciones.get(clave) || 0;
+
+    const nueva =
+        actual + 1;
+
+    infracciones.set(
+        clave,
+        nueva
+    );
+
+    console.log(
+        `🛡️ Infracción ${nueva}: ${userId} → ${insulto}`
+    );
+
+    return nueva;
 }
+
+
+// ========================================
+// OBTENER SANCIÓN
+// ========================================
+
+function obtenerSancion(
+    numero
+) {
+
+    if (numero <= 1) {
+
+        return {
+            tipo: "advertencia"
+        };
+    }
+
+    if (numero === 2) {
+
+        return {
+            tipo: "mute",
+            duracion: 5 * 60 * 1000
+        };
+    }
+
+    if (numero === 3) {
+
+        return {
+            tipo: "mute",
+            duracion: 30 * 60 * 1000
+        };
+    }
+
+    return {
+        tipo: "ban"
+    };
+}
+
+
+// ========================================
+// EXPORTACIONES
+// ========================================
 
 module.exports = {
+
     INSULTOS,
     normalizar,
-    contieneInsulto,
-    obtenerInsulto,
-    respuestaAntiInsulto
+    detectarInsulto,
+    registrarInfraccion,
+    obtenerSancion
+
 };
