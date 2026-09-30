@@ -1,114 +1,343 @@
 const {
-    EmbedBuilder,
-    PermissionFlagsBits
+    EmbedBuilder
 } = require('discord.js');
 
 const {
-    puedeUsarGlobal
-} = require('./comandos');
+    guardarSancion,
+    obtenerSancion,
+    eliminarSancion,
+    obtenerSancionesActivas,
+    sancionExpirada,
+    actualizarEstado
+} = require('./sancion');
 
-// ==========================================
-// ⚙️ CONFIGURACIÓN
-// ==========================================
+/*
+========================================
+CONFIGURACIÓN
+========================================
+*/
 
-const CANAL_LOGS_GLOBAL = '1553774248324104232';
+const SERVIDOR_GLOBAL =
+    '1553169784697528450';
 
-// ==========================================
-// ⏱️ CONVERTIR TIEMPO
-// ==========================================
+const ROL_GLOBAL =
+    '1553526636547280967';
 
-function convertirTiempo(tiempo) {
+const CANAL_LOGS =
+    '1553774248324104232';
 
-    if (!tiempo) return null;
+/*
+========================================
+TEMPORIZADORES
+========================================
+*/
 
-    const texto =
-        tiempo.toLowerCase().trim();
+const temporizadores =
+    new Map();
+
+/*
+========================================
+PARSEAR DURACIÓN
+========================================
+*/
+
+function calcularDuracion(texto) {
+
+    if (!texto) {
+        throw new Error(
+            'Debes indicar una duración.'
+        );
+    }
+
+    const original =
+        String(texto)
+            .trim()
+            .toLowerCase();
+
+    const normalizado =
+        original
+            .normalize('NFD')
+            .replace(
+                /[\u0300-\u036f]/g,
+                ''
+            )
+            .replace(/,/g, ' ')
+            .replace(/\s+/g, ' ')
+            .trim();
 
     if (
-        texto === 'permanente' ||
-        texto === 'perm' ||
-        texto === 'perma'
+        normalizado === 'permanente' ||
+        normalizado === 'permanente' ||
+        normalizado === 'perm' ||
+        normalizado === 'perma'
     ) {
+        return {
+            permanente: true,
+            fechaExpiracion: null,
+            texto: 'Permanente'
+        };
+    }
+
+    /*
+    ========================================
+    FORMATO CORTO
+    Ejemplo:
+    10m
+    5h
+    2d
+    3w
+    6mo
+    2y
+    ========================================
+    */
+
+    const corto =
+        normalizado.match(
+            /^(\d+)\s*(mo|m|h|d|w|y)$/
+        );
+
+    if (corto) {
+
+        const cantidad =
+            Number(corto[1]);
+
+        const unidad =
+            corto[2];
+
+        const ahora =
+            new Date();
+
+        const fecha =
+            new Date(ahora);
+
+        if (unidad === 'm') {
+            fecha.setMinutes(
+                fecha.getMinutes() +
+                cantidad
+            );
+        }
+
+        if (unidad === 'h') {
+            fecha.setHours(
+                fecha.getHours() +
+                cantidad
+            );
+        }
+
+        if (unidad === 'd') {
+            fecha.setDate(
+                fecha.getDate() +
+                cantidad
+            );
+        }
+
+        if (unidad === 'w') {
+            fecha.setDate(
+                fecha.getDate() +
+                cantidad * 7
+            );
+        }
+
+        if (unidad === 'mo') {
+            fecha.setMonth(
+                fecha.getMonth() +
+                cantidad
+            );
+        }
+
+        if (unidad === 'y') {
+            fecha.setFullYear(
+                fecha.getFullYear() +
+                cantidad
+            );
+        }
+
+        return {
+            permanente: false,
+            fechaExpiracion: fecha,
+            texto: original
+        };
+    }
+
+    /*
+    ========================================
+    DURACIÓN EN ESPAÑOL
+    ========================================
+
+    Ejemplos:
+
+    10 minutos
+    5 horas
+    2 días
+    3 semanas
+    6 meses
+    2 años
+
+    1 año 6 meses
+    2 meses 15 días
+    ========================================
+    */
+
+    const patron =
+        /(\d+)\s*(minuto|minutos|hora|horas|dia|dias|semana|semanas|mes|meses|ano|anos)/g;
+
+    const partes = [];
+
+    let coincidencia;
+
+    while (
+        (coincidencia =
+            patron.exec(normalizado))
+    ) {
+        partes.push({
+            cantidad:
+                Number(
+                    coincidencia[1]
+                ),
+            unidad:
+                coincidencia[2]
+        });
+    }
+
+    if (!partes.length) {
+        throw new Error(
+            'Duración inválida. Usa ejemplos como 10m, 5h, 2d, 6mo, 2y o "6 meses".'
+        );
+    }
+
+    const fecha =
+        new Date();
+
+    for (const parte of partes) {
+
+        const cantidad =
+            parte.cantidad;
+
+        const unidad =
+            parte.unidad;
+
+        if (
+            unidad === 'minuto' ||
+            unidad === 'minutos'
+        ) {
+            fecha.setMinutes(
+                fecha.getMinutes() +
+                cantidad
+            );
+        }
+
+        else if (
+            unidad === 'hora' ||
+            unidad === 'horas'
+        ) {
+            fecha.setHours(
+                fecha.getHours() +
+                cantidad
+            );
+        }
+
+        else if (
+            unidad === 'dia' ||
+            unidad === 'dias'
+        ) {
+            fecha.setDate(
+                fecha.getDate() +
+                cantidad
+            );
+        }
+
+        else if (
+            unidad === 'semana' ||
+            unidad === 'semanas'
+        ) {
+            fecha.setDate(
+                fecha.getDate() +
+                cantidad * 7
+            );
+        }
+
+        else if (
+            unidad === 'mes' ||
+            unidad === 'meses'
+        ) {
+            fecha.setMonth(
+                fecha.getMonth() +
+                cantidad
+            );
+        }
+
+        else if (
+            unidad === 'ano' ||
+            unidad === 'anos'
+        ) {
+            fecha.setFullYear(
+                fecha.getFullYear() +
+                cantidad
+            );
+        }
+    }
+
+    return {
+        permanente: false,
+        fechaExpiracion: fecha,
+        texto: original
+    };
+}
+
+/*
+========================================
+COMPROBAR PERMISOS
+========================================
+*/
+
+function puedeModerarGlobal(interaction) {
+
+    if (
+        !interaction ||
+        interaction.guildId !==
+        SERVIDOR_GLOBAL
+    ) {
+        return false;
+    }
+
+    return Boolean(
+        interaction.member?.roles?.cache?.has(
+            ROL_GLOBAL
+        )
+    );
+}
+
+/*
+========================================
+OBTENER USUARIO
+========================================
+*/
+
+async function obtenerUsuario(
+    client,
+    usuarioId
+) {
+
+    if (!usuarioId) {
         return null;
     }
 
-    const coincidencia =
-        texto.match(/^(\d+)\s*(s|m|h|d|w)$/i);
-
-    if (!coincidencia) {
-        return undefined;
+    try {
+        return await client.users.fetch(
+            usuarioId
+        );
+    } catch {
+        return null;
     }
-
-    const cantidad =
-        Number(coincidencia[1]);
-
-    const unidad =
-        coincidencia[2].toLowerCase();
-
-    const unidades = {
-        s: 1000,
-        m: 60 * 1000,
-        h: 60 * 60 * 1000,
-        d: 24 * 60 * 60 * 1000,
-        w: 7 * 24 * 60 * 60 * 1000
-    };
-
-    return cantidad * unidades[unidad];
 }
 
-// ==========================================
-// 🕐 FORMATEAR TIEMPO
-// ==========================================
+/*
+========================================
+ENVIAR LOG
+========================================
+*/
 
-function formatearTiempo(tiempo) {
-
-    if (tiempo === null) {
-        return 'Permanente';
-    }
-
-    if (tiempo === undefined) {
-        return 'Tiempo inválido';
-    }
-
-    const segundos =
-        Math.floor(tiempo / 1000);
-
-    if (segundos < 60) {
-        return `${segundos}s`;
-    }
-
-    const minutos =
-        Math.floor(segundos / 60);
-
-    if (minutos < 60) {
-        return `${minutos}m`;
-    }
-
-    const horas =
-        Math.floor(minutos / 60);
-
-    if (horas < 24) {
-        return `${horas}h`;
-    }
-
-    const dias =
-        Math.floor(horas / 24);
-
-    if (dias < 7) {
-        return `${dias}d`;
-    }
-
-    const semanas =
-        Math.floor(dias / 7);
-
-    return `${semanas}w`;
-}
-
-// ==========================================
-// 📋 ENVIAR LOG GLOBAL
-// ==========================================
-
-async function enviarLogGlobal(
+async function enviarLog(
     client,
     datos
 ) {
@@ -117,91 +346,92 @@ async function enviarLogGlobal(
 
         const canal =
             await client.channels.fetch(
-                CANAL_LOGS_GLOBAL
+                CANAL_LOGS
             );
 
         if (
             !canal ||
             !canal.isTextBased()
         ) {
-            console.error(
-                '❌ No se encontró el canal de logs global.'
-            );
-
             return;
         }
 
         const embed =
             new EmbedBuilder()
                 .setColor(
-                    datos.tipo === 'BAN GLOBAL'
-                        ? 0xff0000
-                        : 0x00ff66
+                    datos.tipo === 'unban'
+                        ? 0x57F287
+                        : 0xED4245
                 )
                 .setTitle(
-                    datos.tipo
+                    datos.tipo === 'unban'
+                        ? '🔓 Usuario desbaneado'
+                        : '🔨 Usuario sancionado'
                 )
                 .addFields(
                     {
                         name: '👤 Usuario',
                         value:
-                            `<@${datos.usuarioId}>`,
+                            datos.usuario
+                                ? `${datos.usuario.tag || datos.usuario.username}`
+                                : 'Desconocido',
                         inline: true
                     },
                     {
                         name: '🆔 ID',
                         value:
-                            datos.usuarioId,
+                            datos.usuarioId ||
+                            'Desconocido',
                         inline: true
                     },
                     {
-                        name: '🛡️ Moderador',
+                        name: '📋 Razón',
                         value:
-                            `${datos.moderador}\n${datos.moderadorId}`,
+                            datos.razon ||
+                            'Sin razón especificada',
+                        inline: false
+                    },
+                    {
+                        name: '⏱️ Duración',
+                        value:
+                            datos.duracion ||
+                            'No especificada',
                         inline: true
                     },
                     {
-                        name: '🏠 Servidor',
+                        name: '👮 Moderador',
                         value:
-                            `${datos.servidor}\n${datos.servidorId}`,
-                        inline: false
+                            datos.moderadorId
+                                ? `<@${datos.moderadorId}>`
+                                : 'Sistema',
+                        inline: true
                     },
                     {
-                        name: '📝 Razón',
+                        name: '🌐 Servidor',
                         value:
-                            datos.razon || 'Sin razón',
-                        inline: false
+                            datos.guild?.name ||
+                            'Servidor global',
+                        inline: true
                     }
                 )
                 .setTimestamp();
 
-        if (datos.tiempo) {
-
-            embed.addFields({
-                name: '⏱️ Duración',
-                value: datos.tiempo,
-                inline: true
-            });
-        }
-
         if (datos.prueba) {
 
             embed.addFields({
-                name: '📎 Prueba',
-                value: datos.prueba,
+                name: '📎 Pruebas',
+                value:
+                    datos.prueba,
                 inline: false
             });
         }
 
-        if (datos.errores?.length) {
+        if (datos.error) {
 
             embed.addFields({
                 name: '⚠️ Errores',
                 value:
-                    datos.errores
-                        .slice(0, 10)
-                        .join('\n')
-                        .slice(0, 1024),
+                    datos.error,
                 inline: false
             });
         }
@@ -219,22 +449,64 @@ async function enviarLogGlobal(
     }
 }
 
-// ==========================================
-// 📩 ENVIAR MD AL USUARIO
-// ==========================================
+/*
+========================================
+ENVIAR DM
+========================================
+*/
 
 async function enviarDM(
-    client,
-    usuarioId,
-    embed
+    usuario,
+    datos
 ) {
+
+    if (!usuario) {
+        return false;
+    }
 
     try {
 
-        const usuario =
-            await client.users.fetch(
-                usuarioId
-            );
+        const embed =
+            new EmbedBuilder()
+                .setColor(
+                    datos.tipo === 'unban'
+                        ? 0x57F287
+                        : 0xED4245
+                )
+                .setTitle(
+                    datos.tipo === 'unban'
+                        ? '🔓 Has sido desbaneado'
+                        : '🔨 Has sido sancionado globalmente'
+                )
+                .setDescription(
+                    datos.tipo === 'unban'
+                        ? 'Tu sanción global ha sido retirada.'
+                        : 'Has recibido una sanción global en Milo.'
+                )
+                .addFields(
+                    {
+                        name: '📋 Razón',
+                        value:
+                            datos.razon ||
+                            'Sin razón especificada'
+                    },
+                    {
+                        name: '⏱️ Duración',
+                        value:
+                            datos.duracion ||
+                            'Permanente'
+                    }
+                )
+                .setTimestamp();
+
+        if (datos.prueba) {
+
+            embed.addFields({
+                name: '📎 Pruebas',
+                value:
+                    datos.prueba
+            });
+        }
 
         await usuario.send({
             embeds: [embed]
@@ -242,320 +514,616 @@ async function enviarDM(
 
         return true;
 
-    } catch (error) {
-
-        console.error(
-            `❌ No se pudo enviar MD a ${usuarioId}:`,
-            error.message
-        );
-
+    } catch {
         return false;
     }
 }
 
-// ==========================================
-// 🔨 BAN GLOBAL
-// ==========================================
+/*
+========================================
+BANEAR EN TODOS LOS SERVIDORES
+========================================
+*/
 
-async function banGlobal(
+async function banearEnTodosLosServidores(
     client,
     usuarioId,
-    razon,
-    tiempoTexto,
-    prueba,
-    moderador
+    razon
 ) {
 
-    const tiempo =
-        convertirTiempo(tiempoTexto);
+    const resultados = [];
 
-    if (tiempo === undefined) {
-
-        throw new Error(
-            'Tiempo inválido. Usa permanente, 1h, 1d, 7d, 30d, etc.'
-        );
-    }
-
-    const errores = [];
-    let baneados = 0;
-
-    // ======================================
-    // 📩 AVISAR AL USUARIO
-    // ======================================
-
-    const dmEmbed =
-        new EmbedBuilder()
-            .setColor(0xff0000)
-            .setTitle('🔨 Has recibido un Ban Global')
-            .setDescription(
-                'Milo ha aplicado una sanción global a tu cuenta.'
-            )
-            .addFields(
-                {
-                    name: '📝 Razón',
-                    value: razon,
-                    inline: false
-                },
-                {
-                    name: '⏱️ Duración',
-                    value:
-                        formatearTiempo(tiempo),
-                    inline: true
-                },
-                {
-                    name: '🛡️ Moderador',
-                    value:
-                        `${moderador.tag || moderador.username}`,
-                    inline: true
-                }
-            )
-            .setTimestamp();
-
-    if (prueba) {
-
-        dmEmbed.addFields({
-            name: '📎 Evidencia',
-            value: prueba.url,
-            inline: false
-        });
-    }
-
-    await enviarDM(
-        client,
-        usuarioId,
-        dmEmbed
-    );
-
-    // ======================================
-    // 🌎 BANEAR EN TODOS LOS SERVIDORES
-    // ======================================
-
-    for (const guild of client.guilds.cache.values()) {
+    for (
+        const guild
+        of client.guilds.cache.values()
+    ) {
 
         try {
-
-            const botMember =
-                guild.members.me;
-
-            if (
-                !botMember ||
-                !botMember.permissions.has(
-                    PermissionFlagsBits.BanMembers
-                )
-            ) {
-                errores.push(
-                    `${guild.name}: Milo no tiene permiso para banear.`
-                );
-
-                continue;
-            }
 
             await guild.members.ban(
                 usuarioId,
                 {
-                    deleteMessageSeconds: 0,
                     reason:
-                        `BAN GLOBAL | ${razon}`
+                        razon
                 }
             );
 
-            baneados++;
+            resultados.push({
+                guildId:
+                    guild.id,
+                guildName:
+                    guild.name,
+                correcto:
+                    true
+            });
 
         } catch (error) {
 
-            // Si ya estaba baneado, no lo tratamos
-            // como un fallo importante.
-
-            if (
-                error.code === 10026 ||
-                error.code === 10007
-            ) {
-                continue;
-            }
-
-            errores.push(
-                `${guild.name}: ${error.message}`
-            );
+            resultados.push({
+                guildId:
+                    guild.id,
+                guildName:
+                    guild.name,
+                correcto:
+                    false,
+                error:
+                    error.message
+            });
         }
     }
 
-    // ======================================
-    // 📊 LOG GLOBAL
-    // ======================================
-
-    await enviarLogGlobal(
-        client,
-        {
-            tipo: '🔨 BAN GLOBAL',
-            usuarioId,
-            razon,
-            tiempo:
-                formatearTiempo(tiempo),
-            prueba:
-                prueba?.url || null,
-            moderador:
-                moderador.tag ||
-                moderador.username,
-            moderadorId:
-                moderador.id,
-            servidor:
-                moderador.guild?.name ||
-                'Servidor desconocido',
-            servidorId:
-                moderador.guild?.id ||
-                'Desconocido',
-            errores
-        }
-    );
-
-    // ======================================
-    // ⏱️ DESBAN AUTOMÁTICO
-    // ======================================
-
-    if (tiempo !== null) {
-
-        setTimeout(
-            async () => {
-
-                await unbanGlobal(
-                    client,
-                    usuarioId,
-                    'Finalización automática del Ban Global',
-                    true
-                );
-
-            },
-            tiempo
-        );
-    }
-
-    return {
-        baneados,
-        errores,
-        tiempo
-    };
+    return resultados;
 }
 
-// ==========================================
-// 🔓 UNBAN GLOBAL
-// ==========================================
+/*
+========================================
+DESBANEAR EN TODOS LOS SERVIDORES
+========================================
+*/
 
-async function unbanGlobal(
+async function desbanearEnTodosLosServidores(
     client,
     usuarioId,
-    razon,
-    automatico = false
+    razon
 ) {
 
-    const errores = [];
-    let desbloqueados = 0;
+    const resultados = [];
 
-    for (const guild of client.guilds.cache.values()) {
+    for (
+        const guild
+        of client.guilds.cache.values()
+    ) {
 
         try {
-
-            const botMember =
-                guild.members.me;
-
-            if (
-                !botMember ||
-                !botMember.permissions.has(
-                    PermissionFlagsBits.BanMembers
-                )
-            ) {
-                errores.push(
-                    `${guild.name}: Milo no tiene permiso.`
-                );
-
-                continue;
-            }
 
             await guild.bans.remove(
                 usuarioId,
                 razon
             );
 
-            desbloqueados++;
+            resultados.push({
+                guildId:
+                    guild.id,
+                guildName:
+                    guild.name,
+                correcto:
+                    true
+            });
 
         } catch (error) {
 
-            // 10026 = usuario no está baneado
-            if (error.code === 10026) {
-                continue;
-            }
-
-            errores.push(
-                `${guild.name}: ${error.message}`
-            );
+            resultados.push({
+                guildId:
+                    guild.id,
+                guildName:
+                    guild.name,
+                correcto:
+                    false,
+                error:
+                    error.message
+            });
         }
     }
 
-    // ======================================
-    // 📩 AVISAR AL USUARIO
-    // ======================================
+    return resultados;
+}
 
-    const dmEmbed =
-        new EmbedBuilder()
-            .setColor(0x00ff66)
-            .setTitle('🔓 Ban Global retirado')
-            .setDescription(
-                automatico
-                    ? 'Tu Ban Global ha finalizado automáticamente.'
-                    : 'Tu Ban Global ha sido retirado.'
+/*
+========================================
+PROGRAMAR DESBANEO
+========================================
+*/
+
+function programarDesbaneo(
+    client,
+    usuarioId,
+    fechaExpiracion
+) {
+
+    if (!fechaExpiracion) {
+        return;
+    }
+
+    if (
+        temporizadores.has(
+            usuarioId
+        )
+    ) {
+
+        clearTimeout(
+            temporizadores.get(
+                usuarioId
             )
-            .addFields({
-                name: '📝 Razón',
-                value: razon,
-                inline: false
-            })
-            .setTimestamp();
+        );
+    }
 
-    await enviarDM(
-        client,
+    const ejecutar =
+        async () => {
+
+            try {
+
+                const sancion =
+                    obtenerSancion(
+                        usuarioId
+                    );
+
+                if (!sancion) {
+                    return;
+                }
+
+                if (
+                    sancion.permanente
+                ) {
+                    return;
+                }
+
+                if (
+                    !sancionExpirada(
+                        usuarioId
+                    )
+                ) {
+
+                    programarDesbaneo(
+                        client,
+                        usuarioId,
+                        sancion.fechaExpiracion
+                    );
+
+                    return;
+                }
+
+                console.log(
+                    `⏰ Desbaneando ${usuarioId}...`
+                );
+
+                await desbanearEnTodosLosServidores(
+                    client,
+                    usuarioId,
+                    'Expiración automática de sanción global'
+                );
+
+                actualizarEstado(
+                    usuarioId,
+                    'expirado'
+                );
+
+                eliminarSancion(
+                    usuarioId
+                );
+
+                temporizadores.delete(
+                    usuarioId
+                );
+
+                console.log(
+                    `✅ Sanción de ${usuarioId} expirada.`
+                );
+
+            } catch (error) {
+
+                console.error(
+                    `❌ Error expirando sanción ${usuarioId}:`,
+                    error
+                );
+            }
+        };
+
+    const diferencia =
+        new Date(
+            fechaExpiracion
+        ).getTime() -
+        Date.now();
+
+    /*
+    Node.js no permite un setTimeout
+    superior a ~24.8 días.
+
+    Por eso dividimos duraciones
+    largas en bloques.
+    */
+
+    const MAX_TIMEOUT =
+        2147483647;
+
+    const tiempo =
+        Math.min(
+            Math.max(
+                diferencia,
+                0
+            ),
+            MAX_TIMEOUT
+        );
+
+    const timeout =
+        setTimeout(
+            ejecutar,
+            tiempo
+        );
+
+    temporizadores.set(
         usuarioId,
-        dmEmbed
+        timeout
+    );
+}
+
+/*
+========================================
+RESTAURAR SANCIONES AL INICIAR
+========================================
+*/
+
+async function restaurarSanciones(
+    client
+) {
+
+    const sanciones =
+        obtenerSancionesActivas();
+
+    console.log(
+        `🛡️ Restaurando ${sanciones.length} sanciones globales...`
     );
 
-    // ======================================
-    // 📊 LOG
-    // ======================================
+    for (
+        const sancion
+        of sanciones
+    ) {
 
-    await enviarLogGlobal(
+        if (
+            sancion.permanente
+        ) {
+
+            await banearEnTodosLosServidores(
+                client,
+                sancion.usuarioId,
+                sancion.razon
+            );
+
+            continue;
+        }
+
+        if (
+            sancionExpirada(
+                sancion.usuarioId
+            )
+        ) {
+
+            await desbanearEnTodosLosServidores(
+                client,
+                sancion.usuarioId,
+                'Sanción temporal expirada'
+            );
+
+            eliminarSancion(
+                sancion.usuarioId
+            );
+
+            continue;
+        }
+
+        await banearEnTodosLosServidores(
+            client,
+            sancion.usuarioId,
+            sancion.razon
+        );
+
+        programarDesbaneo(
+            client,
+            sancion.usuarioId,
+            sancion.fechaExpiracion
+        );
+    }
+}
+
+/*
+========================================
+BAN GLOBAL
+========================================
+*/
+
+async function banGlobal({
+    client,
+    guild,
+    usuarioId,
+    razon,
+    tiempo,
+    prueba = null,
+    moderadorId
+}) {
+
+    if (!client) {
+        throw new Error(
+            'El cliente de Discord es obligatorio.'
+        );
+    }
+
+    if (!usuarioId) {
+        throw new Error(
+            'El ID del usuario es obligatorio.'
+        );
+    }
+
+    if (!razon) {
+        throw new Error(
+            'La razón es obligatoria.'
+        );
+    }
+
+    if (!tiempo) {
+        throw new Error(
+            'La duración es obligatoria.'
+        );
+    }
+
+    const duracion =
+        calcularDuracion(
+            tiempo
+        );
+
+    const usuario =
+        await obtenerUsuario(
+            client,
+            usuarioId
+        );
+
+    const resultados =
+        await banearEnTodosLosServidores(
+            client,
+            usuarioId,
+            razon
+        );
+
+    const sancion =
+        guardarSancion({
+            usuarioId,
+            usuario:
+                usuario?.tag ||
+                usuario?.username ||
+                null,
+            razon,
+            duracionTexto:
+                duracion.texto,
+            permanente:
+                duracion.permanente,
+            fechaInicio:
+                new Date(),
+            fechaExpiracion:
+                duracion.fechaExpiracion,
+            moderadorId,
+            prueba,
+            estado:
+                'baneado'
+        });
+
+    /*
+    Programar expiración
+    */
+
+    if (
+        !duracion.permanente &&
+        duracion.fechaExpiracion
+    ) {
+
+        programarDesbaneo(
+            client,
+            usuarioId,
+            duracion.fechaExpiracion
+        );
+    }
+
+    /*
+    DM
+    */
+
+    await enviarDM(
+        usuario,
+        {
+            tipo: 'ban',
+            razon,
+            duracion:
+                duracion.permanente
+                    ? 'Permanente'
+                    : duracion.texto,
+            prueba
+        }
+    );
+
+    /*
+    Log
+    */
+
+    const errores =
+        resultados
+            .filter(
+                resultado =>
+                    !resultado.correcto
+            )
+            .map(
+                resultado =>
+                    `${resultado.guildName}: ${resultado.error}`
+            )
+            .join('\n');
+
+    await enviarLog(
         client,
         {
-            tipo: '🔓 UNBAN GLOBAL',
+            tipo: 'ban',
+            usuario,
             usuarioId,
             razon,
-            moderador:
-                automatico
-                    ? 'Sistema automático'
-                    : 'Moderador',
-            moderadorId:
-                automatico
-                    ? 'Sistema'
-                    : 'Desconocido',
-            servidor:
-                'Sistema Global',
-            servidorId:
-                'Global',
-            errores
+            duracion:
+                duracion.permanente
+                    ? 'Permanente'
+                    : duracion.texto,
+            prueba,
+            moderadorId,
+            guild,
+            error:
+                errores || null
         }
     );
 
     return {
-        desbloqueados,
-        errores
+        sancion,
+        resultados,
+        usuario
     };
 }
 
-// ==========================================
-// 📦 EXPORTAR
-// ==========================================
+/*
+========================================
+UNBAN GLOBAL
+========================================
+*/
+
+async function unbanGlobal({
+    client,
+    guild,
+    usuarioId,
+    razon,
+    prueba = null,
+    moderadoId
+}) {
+
+    if (!client) {
+        throw new Error(
+            'El cliente de Discord es obligatorio.'
+        );
+    }
+
+    if (!usuarioId) {
+        throw new Error(
+            'El ID del usuario es obligatorio.'
+        );
+    }
+
+    if (!razon) {
+        throw new Error(
+            'La razón es obligatoria.'
+        );
+    }
+
+    const usuario =
+        await obtenerUsuario(
+            client,
+            usuarioId
+        );
+
+    const resultados =
+        await desbanearEnTodosLosServidores(
+            client,
+            usuarioId,
+            razon
+        );
+
+    if (
+        temporizadores.has(
+            usuarioId
+        )
+    ) {
+
+        clearTimeout(
+            temporizadores.get(
+                usuarioId
+            )
+        );
+
+        temporizadores.delete(
+            usuarioId
+        );
+    }
+
+    eliminarSancion(
+        usuarioId
+    );
+
+    await enviarDM(
+        usuario,
+        {
+            tipo: 'unban',
+            razon,
+            duracion:
+                'Sanción retirada',
+            prueba
+        }
+    );
+
+    const errores =
+        resultados
+            .filter(
+                resultado =>
+                    !resultado.correcto
+            )
+            .map(
+                resultado =>
+                    `${resultado.guildName}: ${resultado.error}`
+            )
+            .join('\n');
+
+    await enviarLog(
+        client,
+        {
+            tipo: 'unban',
+            usuario,
+            usuarioId,
+            razon,
+            duracion:
+                'Sanción retirada',
+            prueba,
+            moderadorId,
+            guild,
+            error:
+                errores || null
+        }
+    );
+
+    return {
+        resultados,
+        usuario
+    };
+}
+
+/*
+========================================
+EXPORTAR
+========================================
+*/
 
 module.exports = {
-    puedeUsarGlobal,
+    SERVIDOR_GLOBAL,
+    ROL_GLOBAL,
+    CANAL_LOGS,
+
+    puedeModerarGlobal,
+
+    calcularDuracion,
+
     banGlobal,
     unbanGlobal,
-    convertirTiempo,
-    formatearTiempo
+
+    restaurarSanciones,
+
+    programarDesbaneo,
+
+    banearEnTodosLosServidores,
+    desbanearEnTodosLosServidores
 };
