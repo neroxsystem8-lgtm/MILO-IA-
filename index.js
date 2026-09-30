@@ -585,7 +585,7 @@ function obtenerPreguntaMensaje(message) {
     ?PREGUNTA
     ================================
     */
-
+     
     if (contenido.startsWith('?')) {
 
         contenido = contenido
@@ -597,23 +597,6 @@ function obtenerPreguntaMensaje(message) {
 
     return null;
 }
-
-
-/*
-========================================
-MESSAGE CREATE
-========================================
-*/
-
-client.on('messageCreate', async (message) => {
-
-    /*
-    Ignorar mensajes de bots
-    */
-
-    if (message.author.bot) {
-        return;
-    }
 
     /*
     ================================
