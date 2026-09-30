@@ -1,5 +1,6 @@
 const {
-    SlashCommandBuilder
+    SlashCommandBuilder,
+    PermissionFlagsBits
 } = require('discord.js');
 
 const SERVIDOR_GLOBAL = '1553169784697528450';
@@ -38,6 +39,28 @@ const comandos = [
     new SlashCommandBuilder()
         .setName('reiniciar')
         .setDescription('Reinicia tu conversación con Milo'),
+
+    // ==========================================
+    // 📌 CANAL DE IA
+    // ==========================================
+
+    new SlashCommandBuilder()
+        .setName('canal')
+        .setDescription('Configura el canal donde funcionará la IA')
+        .addSubcommand(subcommand =>
+            subcommand
+                .setName('ia')
+                .setDescription('Configura, cambia o desactiva el canal de IA')
+                .addChannelOption(option =>
+                    option
+                        .setName('canal')
+                        .setDescription('Canal donde funcionará la IA')
+                        .setRequired(false)
+                )
+        )
+        .setDefaultMemberPermissions(
+            PermissionFlagsBits.ManageGuild.toString()
+        ),
 
     // ==========================================
     // 🖼️ IMÁGENES
@@ -100,7 +123,7 @@ const comandos = [
         .addStringOption(option =>
             option
                 .setName('tiempo')
-                .setDescription('permanente, 1h, 1d, 7d, 30d, etc.')
+                .setDescription('Ejemplo: 10 minutos, 2 días, 6 meses o permanente')
                 .setRequired(true)
         )
         .addAttachmentOption(option =>
@@ -146,7 +169,7 @@ const comandos = [
 
     new SlashCommandBuilder()
         .setName('modelo')
-        .setDescription('Muestra el modelo de inteligencia artificial'),
+        .setDescription('Muestra información del sistema de IA'),
 
     new SlashCommandBuilder()
         .setName('servidor')
@@ -232,7 +255,7 @@ const comandos = [
         .addStringOption(option =>
             option
                 .setName('valor')
-                .setDescription('Ejemplo: 10 km')
+                .setDescription('Valor que quieres convertir')
                 .setRequired(true)
         )
         .addStringOption(option =>
@@ -259,21 +282,72 @@ const comandos = [
         .setDescription('Muestra las estadísticas de Milo')
 ];
 
+/*
+==========================================
+REGISTRAR COMANDOS
+==========================================
+*/
+
+async function registrarComandos(client) {
+    try {
+        const datos =
+            comandos.map(
+                comando => comando.toJSON()
+            );
+
+        await client.application.commands.set(
+            datos
+        );
+
+        console.log(
+            `✅ ${datos.length} comandos registrados correctamente.`
+        );
+
+    } catch (error) {
+        console.error(
+            '❌ Error registrando comandos:',
+            error
+        );
+
+        throw error;
+    }
+}
+
+/*
+==========================================
+PERMISOS DE MODERACIÓN GLOBAL
+==========================================
+*/
+
 function puedeUsarGlobal(interaction) {
 
-    if (interaction.guildId !== SERVIDOR_GLOBAL) {
+    if (
+        interaction.guildId !==
+        SERVIDOR_GLOBAL
+    ) {
         return false;
     }
 
-    if (!interaction.member?.roles?.cache?.has(ROL_GLOBAL)) {
+    if (
+        !interaction.member?.roles?.cache?.has(
+            ROL_GLOBAL
+        )
+    ) {
         return false;
     }
 
     return true;
 }
 
+/*
+==========================================
+EXPORTAR
+==========================================
+*/
+
 module.exports = {
     comandos,
+    registrarComandos,
     puedeUsarGlobal,
     SERVIDOR_GLOBAL,
     ROL_GLOBAL
