@@ -516,86 +516,201 @@ async function responderIA(
 
 /*
 ========================================
-DETECTAR MENCIÓN
+DETECTAR MENSAJE DIRIGIDO A MILO
 ========================================
 */
 
-function obtenerPreguntaMensaje(
-    message
-) {
+function obtenerPreguntaMensaje(message) {
 
-    let contenido =
-        message.content.trim();
+    let contenido = message.content.trim();
 
-    const mention =
-        `<@${client.user.id}>`;
+    if (!contenido) {
+        return null;
+    }
 
-    const mentionNick =
-        `<@!${client.user.id}>`;
+    /*
+    ================================
+    PING
+    ================================
+    */
 
-    if (
-        contenido.startsWith(
-            mention
-        )
-    ) {
+    if (/^ping$/i.test(contenido)) {
+        return '__PING__';
+    }
 
-        contenido =
-            contenido
-                .slice(
-                    mention.length
-                )
-                .trim();
+    /*
+    ================================
+    MENCIÓN DE MILO
+    ================================
+    */
+
+    const mention = `<@${client.user.id}>`;
+    const mentionNick = `<@!${client.user.id}>`;
+
+    if (contenido.startsWith(mention)) {
+
+        contenido = contenido
+            .slice(mention.length)
+            .trim();
 
         return contenido;
     }
 
-    if (
-        contenido.startsWith(
-            mentionNick
-        )
-    ) {
+    if (contenido.startsWith(mentionNick)) {
 
-        contenido =
-            contenido
-                .slice(
-                    mentionNick.length
-                )
-                .trim();
+        contenido = contenido
+            .slice(mentionNick.length)
+            .trim();
 
         return contenido;
     }
 
-    if (
-        /^milo\b/i.test(
-            contenido
-        )
-    ) {
+    /*
+    ================================
+    MILO HOLA
+    ================================
+    */
 
-        contenido =
-            contenido
-                .replace(
-                    /^milo\b/i,
-                    ''
-                )
-                .trim();
+    if (/^milo\b/i.test(contenido)) {
+
+        contenido = contenido
+            .replace(/^milo\b/i, '')
+            .trim();
 
         return contenido;
     }
 
-    if (
-        contenido.startsWith('?')
-    ) {
+    /*
+    ================================
+    ?PREGUNTA
+    ================================
+    */
 
-        contenido =
-            contenido
-                .slice(1)
-                .trim();
+    if (contenido.startsWith('?')) {
+
+        contenido = contenido
+            .slice(1)
+            .trim();
 
         return contenido;
     }
 
     return null;
 }
+
+
+/*
+========================================
+MESSAGE CREATE
+========================================
+*/
+
+client.on('messageCreate', async (message) => {
+
+    /*
+    Ignorar mensajes de bots
+    */
+
+    if (message.author.bot) {
+        return;
+    }
+
+    /*
+    ================================
+    ANTIINSULTOS
+    ================================
+    */
+
+    const sancionado =
+        await manejarAntiInsultos(message);
+
+    if (sancionado) {
+        return;
+    }
+
+    /*
+    ================================
+    MENSAJES DIRECTOS
+    ================================
+    */
+
+    if (!message.guild) {
+        return;
+    }
+
+    /*
+    ================================
+    DETECTAR PREGUNTA
+    ================================
+    */
+
+    const pregunta =
+        obtenerPreguntaMensaje(message);
+
+    if (pregunta === null) {
+        return;
+    }
+
+    /*
+    ================================
+    PING
+    ================================
+    */
+
+    if (pregunta === '__PING__') {
+
+        const inicio = Date.now();
+
+        const mensaje =
+            await message.reply(
+                '🏓 Calculando ping...'
+            );
+
+        const latencia =
+            Date.now() - inicio;
+
+        return mensaje.edit(
+            `🏓 **Pong!**\n` +
+            `💬 Mensaje: \`${latencia}ms\`\n` +
+            `🌐 API: \`${client.ws.ping}ms\``
+        );
+    }
+
+    /*
+    ================================
+    MENCIÓN / MILO SIN PREGUNTA
+    ================================
+    */
+
+    if (!pregunta.trim()) {
+
+        return message.reply(
+            '👋 ¡Hola! Soy **MILO IA**.\n' +
+            '💬 Escribe una pregunta después de mencionarme.'
+        );
+    }
+
+    /*
+    ================================
+    COMPROBAR CANAL IA
+    ================================
+    */
+
+    if (!puedeUsarIAEnCanal(message)) {
+        return;
+    }
+
+    /*
+    ================================
+    RESPONDER CON GROQ
+    ================================
+    */
+
+    await responderIA(
+        message,
+        pregunta
+    );
+});
 
 /*
 ========================================
