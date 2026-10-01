@@ -1632,4 +1632,1476 @@ client.on(
         }
 
 
-        
+        /* =================================================
+               IDIOMA
+            ================================================= */
+
+            if (
+                nombre === 'idioma'
+            ) {
+
+                const idioma =
+                    interaction.options.getString(
+                        'idioma'
+                    );
+
+                if (!idioma) {
+
+                    const disponibles =
+                        Object.entries(
+                            obtenerIdiomas()
+                        )
+                            .map(
+                                ([id, nombre]) =>
+                                    `\`${id}\` — ${nombre}`
+                            )
+                            .join('\n');
+
+                    await interaction.reply({
+
+                        content:
+                            `🌎 **Idiomas disponibles:**\n\n${disponibles}`,
+
+                        ephemeral: true
+
+                    });
+
+                    return;
+
+                }
+
+
+                establecerIdioma(
+                    interaction.user.id,
+                    idioma
+                );
+
+
+                await interaction.reply(
+                    `🌎 Idioma cambiado a **${obtenerNombreIdioma(idioma)}**.`
+                );
+
+                return;
+
+            }
+
+
+            /* =================================================
+               IMAGEN
+            ================================================= */
+
+            if (
+                nombre === 'imagen'
+            ) {
+
+                const prompt =
+                    interaction.options.getString(
+                        'prompt'
+                    );
+
+                if (!prompt) {
+
+                    await interaction.reply({
+
+                        content:
+                            '❌ Debes describir la imagen.',
+
+                        ephemeral: true
+
+                    });
+
+                    return;
+
+                }
+
+
+                const usos =
+                    obtenerUsos(
+                        interaction.user.id
+                    );
+
+                const limite =
+                    limiteImagenes(
+                        interaction.user.id
+                    );
+
+
+                if (
+                    usos.imagenes >= limite
+                ) {
+
+                    await interaction.reply({
+
+                        content:
+                            '⚠️ Has alcanzado tu límite diario de imágenes.',
+
+                        ephemeral: true
+
+                    });
+
+                    return;
+
+                }
+
+
+                await interaction.deferReply();
+
+
+                const imagen =
+                    await generarImagen(
+                        prompt
+                    );
+
+
+                registrarUso(
+                    interaction.user.id,
+                    'imagenes'
+                );
+
+
+                const archivo =
+                    new AttachmentBuilder(
+                        imagen,
+                        {
+                            name:
+                                'milo-imagen.png'
+                        }
+                    );
+
+
+                await interaction.editReply({
+
+                    content:
+                        '🖼️ **Imagen generada por Milo**',
+
+                    files: [
+                        archivo
+                    ]
+
+                });
+
+                return;
+
+            }
+
+
+            /* =================================================
+               CALCULAR
+            ================================================= */
+
+            if (
+                nombre === 'calcular'
+            ) {
+
+                const operacion =
+                    interaction.options.getString(
+                        'operacion'
+                    );
+
+                try {
+
+                    const resultado =
+                        utilidades.calcularOperacion(
+                            operacion
+                        );
+
+                    await interaction.reply(
+                        `🧮 Resultado: **${resultado}**`
+                    );
+
+                } catch (error) {
+
+                    await interaction.reply({
+                        content:
+                            `❌ ${error.message}`,
+                        ephemeral: true
+                    });
+
+                }
+
+                return;
+
+            }
+
+
+            /* =================================================
+               CONVERTIR
+            ================================================= */
+
+            if (
+                nombre === 'convertir'
+            ) {
+
+                const cantidad =
+                    interaction.options.getNumber(
+                        'cantidad'
+                    );
+
+                const de =
+                    interaction.options.getString(
+                        'de'
+                    );
+
+                const a =
+                    interaction.options.getString(
+                        'a'
+                    );
+
+                try {
+
+                    const resultado =
+                        utilidades.convertir(
+                            cantidad,
+                            de,
+                            a
+                        );
+
+                    await interaction.reply(
+                        `🔄 **${cantidad} ${de} = ${resultado} ${a}**`
+                    );
+
+                } catch (error) {
+
+                    await interaction.reply({
+                        content:
+                            `❌ ${error.message}`,
+                        ephemeral: true
+                    });
+
+                }
+
+                return;
+
+            }
+
+
+            /* =================================================
+               TRADUCIR
+            ================================================= */
+
+            if (
+                nombre === 'traducir'
+            ) {
+
+                const texto =
+                    interaction.options.getString(
+                        'texto'
+                    );
+
+                const idioma =
+                    interaction.options.getString(
+                        'idioma'
+                    );
+
+                await interaction.deferReply();
+
+                try {
+
+                    const resultado =
+                        await utilidades.traducir(
+                            texto,
+                            idioma
+                        );
+
+                    await interaction.editReply(
+                        resultado
+                    );
+
+                } catch (error) {
+
+                    await interaction.editReply(
+                        `❌ ${error.message}`
+                    );
+
+                }
+
+                return;
+
+            }
+
+
+            /* =================================================
+               RESUMIR
+            ================================================= */
+
+            if (
+                nombre === 'resumir'
+            ) {
+
+                const texto =
+                    interaction.options.getString(
+                        'texto'
+                    );
+
+                await interaction.deferReply();
+
+                try {
+
+                    const resultado =
+                        await utilidades.resumir(
+                            texto
+                        );
+
+                    await interaction.editReply(
+                        resultado
+                    );
+
+                } catch (error) {
+
+                    await interaction.editReply(
+                        `❌ ${error.message}`
+                    );
+
+                }
+
+                return;
+
+            }
+
+
+            /* =================================================
+               EXPLICAR
+            ================================================= */
+
+            if (
+                nombre === 'explicar'
+            ) {
+
+                const texto =
+                    interaction.options.getString(
+                        'texto'
+                    );
+
+                await interaction.deferReply();
+
+                try {
+
+                    const resultado =
+                        await utilidades.explicar(
+                            texto
+                        );
+
+                    await interaction.editReply(
+                        resultado
+                    );
+
+                } catch (error) {
+
+                    await interaction.editReply(
+                        `❌ ${error.message}`
+                    );
+
+                }
+
+                return;
+
+            }
+
+
+            /* =================================================
+               HORA
+            ================================================= */
+
+            if (
+                nombre === 'hora'
+            ) {
+
+                const zona =
+                    interaction.options.getString(
+                        'zona'
+                    ) ||
+                    'America/Bogota';
+
+                try {
+
+                    const hora =
+                        utilidades.obtenerHora(
+                            zona
+                        );
+
+                    await interaction.reply(
+                        `🕐 ${hora}`
+                    );
+
+                } catch (error) {
+
+                    await interaction.reply({
+                        content:
+                            `❌ ${error.message}`,
+                        ephemeral: true
+                    });
+
+                }
+
+                return;
+
+            }
+
+
+            /* =================================================
+               FECHA
+            ================================================= */
+
+            if (
+                nombre === 'fecha'
+            ) {
+
+                const zona =
+                    interaction.options.getString(
+                        'zona'
+                    ) ||
+                    'America/Bogota';
+
+                try {
+
+                    const fecha =
+                        utilidades.obtenerFecha(
+                            zona
+                        );
+
+                    await interaction.reply(
+                        `📅 ${fecha}`
+                    );
+
+                } catch (error) {
+
+                    await interaction.reply({
+                        content:
+                            `❌ ${error.message}`,
+                        ephemeral: true
+                    });
+
+                }
+
+                return;
+
+            }
+
+
+            /* =================================================
+               CONTADOR
+            ================================================= */
+
+            if (
+                nombre === 'contador'
+            ) {
+
+                const fecha =
+                    interaction.options.getString(
+                        'fecha'
+                    );
+
+                try {
+
+                    const resultado =
+                        utilidades.calcularContador(
+                            fecha
+                        );
+
+                    if (
+                        resultado.terminado
+                    ) {
+
+                        await interaction.reply(
+                            '⏰ El contador ya terminó.'
+                        );
+
+                    } else {
+
+                        await interaction.reply(
+                            `⏳ **${resultado.dias}d ${resultado.horas}h ${resultado.minutos}m ${resultado.segundos}s**`
+                        );
+
+                    }
+
+                } catch (error) {
+
+                    await interaction.reply({
+                        content:
+                            `❌ ${error.message}`,
+                        ephemeral: true
+                    });
+
+                }
+
+                return;
+
+            }
+
+
+             /* =================================================
+               PORCENTAJE
+            ================================================= */
+
+            if (
+                nombre === 'porcentaje'
+            ) {
+
+                const porcentaje =
+                    interaction.options.getNumber(
+                        'porcentaje'
+                    );
+
+                const cantidad =
+                    interaction.options.getNumber(
+                        'cantidad'
+                    );
+
+                try {
+
+                    const resultado =
+                        utilidades.calcularPorcentaje(
+                            porcentaje,
+                            cantidad
+                        );
+
+                    await interaction.reply(
+                        `📊 Resultado: **${resultado}**`
+                    );
+
+                } catch (error) {
+
+                    await interaction.reply({
+                        content:
+                            `❌ ${error.message}`,
+                        ephemeral: true
+                    });
+
+                }
+
+                return;
+
+            }
+
+
+            /* =================================================
+               REGLA DE 3
+            ================================================= */
+
+            if (
+                nombre === 'regla3'
+            ) {
+
+                const a =
+                    interaction.options.getNumber(
+                        'a'
+                    );
+
+                const b =
+                    interaction.options.getNumber(
+                        'b'
+                    );
+
+                const c =
+                    interaction.options.getNumber(
+                        'c'
+                    );
+
+                try {
+
+                    const resultado =
+                        utilidades.reglaTres(
+                            a,
+                            b,
+                            c
+                        );
+
+                    await interaction.reply(
+                        `📐 Resultado: **${resultado}**`
+                    );
+
+                } catch (error) {
+
+                    await interaction.reply({
+                        content:
+                            `❌ ${error.message}`,
+                        ephemeral: true
+                    });
+
+                }
+
+                return;
+
+            }
+
+
+             /* =================================================
+               PASSWORD
+            ================================================= */
+
+            if (
+                nombre === 'generar-password'
+            ) {
+
+                const longitud =
+                    interaction.options.getInteger(
+                        'longitud'
+                    ) || 16;
+
+                const password =
+                    utilidades.generarPassword(
+                        longitud
+                    );
+
+                await interaction.reply({
+
+                    content:
+                        `🔐 Contraseña generada:\n\`${password}\``,
+
+                    ephemeral: true
+
+                });
+
+                return;
+
+            }
+
+
+            /* =================================================
+               CANAL IA
+            ================================================= */
+
+            if (
+                nombre === 'canal'
+            ) {
+
+                const subcomando =
+                    interaction.options.getSubcommand();
+
+                if (
+                    subcomando === 'ia'
+                ) {
+
+                    if (
+                        !interaction.memberPermissions
+                            ?.has(
+                                PermissionFlagsBits
+                                    .ManageGuild
+                            )
+                    ) {
+
+                        await interaction.reply({
+
+                            content:
+                                '❌ Necesitas permisos para administrar el servidor.',
+
+                            ephemeral: true
+
+                        });
+
+                        return;
+
+                    }
+
+
+                    const canal =
+                        interaction.options.getChannel(
+                            'canal'
+                        );
+
+                    if (!canal) {
+
+                        await interaction.reply({
+
+                            content:
+                                '❌ Debes indicar un canal.',
+
+                            ephemeral: true
+
+                        });
+
+                        return;
+
+                    }
+
+
+                    configurarCanalIA(
+                        interaction.guild.id,
+                        canal.id
+                    );
+
+
+                    await interaction.reply(
+                        `🧠 Canal de IA configurado: ${canal}`
+                    );
+
+                    return;
+
+                }
+
+            }
+
+
+            /* =================================================
+               ESTADO
+            ================================================= */
+
+            if (
+                nombre === 'estado'
+            ) {
+
+                const uptime =
+                    process.uptime();
+
+                const segundos =
+                    Math.floor(
+                        uptime
+                    );
+
+                const horas =
+                    Math.floor(
+                        segundos / 3600
+                    );
+
+                const minutos =
+                    Math.floor(
+                        (segundos % 3600) / 60
+                    );
+
+                await interaction.reply({
+
+                    embeds: [
+
+                        new EmbedBuilder()
+                            .setColor(0x57F287)
+                            .setTitle(
+                                '🟢 Estado de Milo'
+                            )
+                            .addFields(
+
+                                {
+                                    name: '🤖 Estado',
+                                    value: 'En línea',
+                                    inline: true
+                                },
+
+                                {
+                                    name: '🌐 Servidores',
+                                    value:
+                                        String(
+                                            client.guilds.cache.size
+                                        ),
+                                    inline: true
+                                },
+
+                                {
+                                    name: '🏓 Ping',
+                                    value:
+                                        `${client.ws.ping}ms`,
+                                    inline: true
+                                },
+
+                                {
+                                    name: '⏱️ Tiempo activo',
+                                    value:
+                                        `${horas}h ${minutos}m`,
+                                    inline: true
+                                }
+
+                            )
+
+                    ]
+
+                });
+
+                return;
+
+            }
+
+
+            /* =================================================
+               MODELO
+            ================================================= */
+
+            if (
+                nombre === 'modelo'
+            ) {
+
+                await interaction.reply(
+                    `🧠 Modelo de IA: **${
+                        process.env.GROQ_MODEL ||
+                        'openai/gpt-oss-120b'
+                    }**`
+                );
+
+                return;
+
+            }
+
+
+            /* =================================================
+               SERVIDOR
+            ================================================= */
+
+            if (
+                nombre === 'servidor'
+            ) {
+
+                if (
+                    !interaction.guild
+                ) {
+
+                    await interaction.reply({
+                        content:
+                            '❌ Este comando solo funciona en servidores.',
+                        ephemeral: true
+                    });
+
+                    return;
+
+                }
+
+
+                await interaction.reply({
+
+                    embeds: [
+
+                        new EmbedBuilder()
+                            .setColor(0x5865F2)
+                            .setTitle(
+                                `🌐 ${interaction.guild.name}`
+                            )
+                            .addFields(
+
+                                {
+                                    name: '👥 Miembros',
+                                    value:
+                                        String(
+                                            interaction.guild.memberCount
+                                        ),
+                                    inline: true
+                                },
+
+                                {
+                                    name: '📁 Canales',
+                                    value:
+                                        String(
+                                            interaction.guild.channels.cache.size
+                                        ),
+                                    inline: true
+                                },
+
+                                {
+                                    name: '🛡️ Roles',
+                                    value:
+                                        String(
+                                            interaction.guild.roles.cache.size
+                                        ),
+                                    inline: true
+                                }
+
+                            )
+
+                    ]
+
+                });
+
+                return;
+
+            }
+
+
+             /* =================================================
+               USUARIO
+            ================================================= */
+
+            if (
+                nombre === 'usuario'
+            ) {
+
+                const usuario =
+                    interaction.options.getUser(
+                        'usuario'
+                    ) ||
+                    interaction.user;
+
+                await interaction.reply({
+
+                    embeds: [
+
+                        new EmbedBuilder()
+                            .setColor(0x5865F2)
+                            .setTitle(
+                                '👤 Información del usuario'
+                            )
+                            .setThumbnail(
+                                usuario.displayAvatarURL({
+                                    size: 512
+                                })
+                            )
+                            .addFields(
+
+                                {
+                                    name: '👤 Usuario',
+                                    value:
+                                        usuario.tag,
+                                    inline: true
+                                },
+
+                                {
+                                    name: '🆔 ID',
+                                    value:
+                                        usuario.id,
+                                    inline: true
+                                },
+
+                                {
+                                    name: '🤖 Bot',
+                                    value:
+                                        usuario.bot
+                                            ? 'Sí'
+                                            : 'No',
+                                    inline: true
+                                }
+
+                            )
+
+                    ]
+
+                });
+
+                return;
+
+            }
+
+
+            /* =================================================
+               AVATAR
+            ================================================= */
+
+            if (
+                nombre === 'avatar'
+            ) {
+
+                const usuario =
+                    interaction.options.getUser(
+                        'usuario'
+                    ) ||
+                    interaction.user;
+
+                await interaction.reply({
+
+                    content:
+                        usuario.displayAvatarURL({
+                            size: 4096
+                        })
+
+                });
+
+                return;
+
+            }
+
+
+            /* =================================================
+               PING
+            ================================================= */
+
+            if (
+                nombre === 'ping'
+            ) {
+
+                await interaction.reply(
+                    `🏓 Pong!\nLatencia: **${client.ws.ping}ms**`
+                );
+
+                return;
+
+            }
+
+
+            /* =================================================
+               ESTADÍSTICAS
+            ================================================= */
+
+            if (
+                nombre === 'estadisticas'
+            ) {
+
+                const usuarios =
+                    cargarJSON(
+                        ARCHIVOS.usos
+                    );
+
+                const totalUsuarios =
+                    Object.keys(
+                        usuarios
+                    ).length;
+
+                await interaction.reply({
+
+                    embeds: [
+
+                        new EmbedBuilder()
+                            .setColor(0x5865F2)
+                            .setTitle(
+                                '📊 Estadísticas de Milo'
+                            )
+                            .addFields(
+
+                                {
+                                    name: '🌐 Servidores',
+                                    value:
+                                        String(
+                                            client.guilds.cache.size
+                                        ),
+                                    inline: true
+                                },
+
+                                {
+                                    name: '👤 Usuarios registrados',
+                                    value:
+                                        String(
+                                            totalUsuarios
+                                        ),
+                                    inline: true
+                                },
+
+                                {
+                                    name: '🧠 Modelo',
+                                    value:
+                                        process.env.GROQ_MODEL ||
+                                        'Groq',
+                                    inline: true
+                                }
+
+                            )
+
+                    ]
+
+                });
+
+                return;
+
+            }
+
+
+            /* =================================================
+               INVITAR
+            ================================================= */
+
+            if (
+                nombre === 'invitar'
+            ) {
+
+                const url =
+                    `https://discord.com/oauth2/authorize?client_id=${client.user.id}&permissions=8&scope=bot%20applications.commands`;
+
+                await interaction.reply(
+                    `🤖 **Invita a Milo:**\n${url}`
+                );
+
+                return;
+
+            }
+
+
+            /* =================================================
+               BAN GLOBAL
+            ================================================= */
+
+            if (
+                nombre === 'ban-global'
+            ) {
+
+                if (
+                    !interaction.guild
+                ) {
+
+                    await interaction.reply({
+                        content:
+                            '❌ Este comando solo funciona en servidores.',
+                        ephemeral: true
+                    });
+
+                    return;
+
+                }
+
+
+                if (
+                    interaction.guild.id !==
+                    SERVIDOR_GLOBAL
+                ) {
+
+                    await interaction.reply({
+
+                        content:
+                            '❌ Este comando solo puede utilizarse desde el servidor autorizado.',
+
+                        ephemeral: true
+
+                    });
+
+                    return;
+
+                }
+
+
+                if (
+                    !interaction.member.roles.cache.has(
+                        ROL_GLOBAL
+                    )
+                ) {
+
+                    await interaction.reply({
+
+                        content:
+                            '❌ No tienes permisos para utilizar el ban global.',
+
+                        ephemeral: true
+
+                    });
+
+                    return;
+
+                }
+
+
+                const usuario =
+                    interaction.options.getString(
+                        'usuario'
+                    );
+
+                const razon =
+                    interaction.options.getString(
+                        'razon'
+                    ) ||
+                    'Sin razón especificada';
+
+                const duracion =
+                    interaction.options.getString(
+                        'duracion'
+                    ) ||
+                    'permanente';
+
+
+                if (
+                    typeof moderacion.banGlobal
+                    !== 'function'
+                ) {
+
+                    await interaction.reply({
+
+                        content:
+                            '❌ El sistema de moderación global no está disponible.',
+
+                        ephemeral: true
+
+                    });
+
+                    return;
+
+                }
+
+
+                await interaction.deferReply(
+                    {
+                        ephemeral: true
+                    }
+                );
+
+
+                await moderacion.banGlobal({
+
+                    client,
+
+                    usuario,
+
+                    razon,
+
+                    duracion,
+
+                    moderadorId:
+                        interaction.user.id
+
+                });
+
+
+                await interaction.editReply(
+                    '🔨 Ban global ejecutado correctamente.'
+                );
+
+                return;
+
+            }
+
+
+            /* =================================================
+               UNBAN GLOBAL
+            ================================================= */
+
+            if (
+                nombre === 'unban-global'
+            ) {
+
+                if (
+                    interaction.guild?.id !==
+                    SERVIDOR_GLOBAL
+                ) {
+
+                    await interaction.reply({
+
+                        content:
+                            '❌ Este comando solo puede utilizarse desde el servidor autorizado.',
+
+                        ephemeral: true
+
+                    });
+
+                    return;
+
+                }
+
+
+                if (
+                    !interaction.member.roles.cache.has(
+                        ROL_GLOBAL
+                    )
+                ) {
+
+                    await interaction.reply({
+
+                        content:
+                            '❌ No tienes permisos.',
+
+                        ephemeral: true
+
+                    });
+
+                    return;
+
+                }
+
+
+                const usuario =
+                    interaction.options.getString(
+                        'usuario'
+                    );
+
+
+                await interaction.deferReply(
+                    {
+                        ephemeral: true
+                    }
+                );
+
+
+                if (
+                    typeof moderacion.unbanGlobal
+                    === 'function'
+                ) {
+
+                    await moderacion.unbanGlobal({
+
+                        client,
+
+                        usuario,
+
+                        moderadorId:
+                            interaction.user.id
+
+                    });
+
+                }
+
+
+                await interaction.editReply(
+                    '✅ Unban global ejecutado correctamente.'
+                );
+
+                return;
+
+            }
+
+
+             /* =================================================
+               PANEL
+               ================================================= */
+
+            if (
+                nombre === 'panel'
+            ) {
+
+                const subcomando =
+                    interaction.options.getSubcommand();
+
+
+                if (
+                    subcomando === 'create'
+                ) {
+
+                    if (
+                        !interaction.memberPermissions
+                            ?.has(
+                                PermissionFlagsBits
+                                    .ManageChannels
+                            )
+                    ) {
+
+                        await interaction.reply({
+
+                            content:
+                                '❌ Necesitas permisos para administrar canales.',
+
+                            ephemeral: true
+
+                        });
+
+                        return;
+
+                    }
+
+
+                    await interaction.reply({
+
+                        content:
+                            '🎫 **Creación de panel iniciada.**\n\nEl sistema de paneles debe encargarse de solicitar la configuración y crear el panel.',
+
+                        ephemeral: true
+
+                    });
+
+                    return;
+
+                }
+
+
+                if (
+                    subcomando === 'edit'
+                ) {
+
+                    await interaction.reply({
+
+                        content:
+                            '✏️ Sistema de edición de panel iniciado.',
+
+                        ephemeral: true
+
+                    });
+
+                    return;
+
+                }
+
+            }
+
+
+            /* =================================================
+               COMANDO DESCONOCIDO
+            ================================================= */
+
+            console.log(
+                `⚠️ Comando sin controlador: /${nombre}`
+            );
+
+
+        } catch (error) {
+
+            console.error(
+                '❌ ERROR interactionCreate:',
+                error
+            );
+
+
+            try {
+
+                if (
+                    interaction.replied ||
+                    interaction.deferred
+                ) {
+
+                    await interaction.followUp({
+
+                        content:
+                            '❌ Ocurrió un error al ejecutar este comando.',
+
+                        ephemeral: true
+
+                    });
+
+                } else {
+
+                    await interaction.reply({
+
+                        content:
+                            '❌ Ocurrió un error al ejecutar este comando.',
+
+                        ephemeral: true
+
+                    });
+
+                }
+
+            } catch {}
+
+        }
+
+    }
+);
+
+
+
+/* =========================================================
+   ERRORES DEL CLIENTE
+   ========================================================= */
+
+client.on(
+    'error',
+    error => {
+
+        console.error(
+            '❌ Discord Client Error:',
+            error
+        );
+
+    }
+);
+
+
+client.on(
+    'warn',
+    warning => {
+
+        console.warn(
+            '⚠️ Discord Warning:',
+            warning
+        );
+
+    }
+);
+
+
+process.on(
+    'unhandledRejection',
+    error => {
+
+        console.error(
+            '❌ Unhandled Rejection:',
+            error
+        );
+
+    }
+);
+
+
+process.on(
+    'uncaughtException',
+    error => {
+
+        console.error(
+            '❌ Uncaught Exception:',
+            error
+        );
+
+    }
+);
+
+
+/* =========================================================
+   LOGIN
+   ========================================================= */
+
+client.login(
+    TOKEN
+);
