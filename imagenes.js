@@ -10,11 +10,9 @@ const hf = HF_TOKEN
     ? new InferenceClient(HF_TOKEN)
     : null;
 
-/*
-=========================
-DETECTAR NSFW
-=========================
-*/
+/* =========================================================
+   🚫 DETECCIÓN NSFW
+========================================================= */
 
 function esNSFW(prompt) {
     if (!prompt || !prompt.trim()) {
@@ -47,22 +45,17 @@ function esNSFW(prompt) {
         .replace(/[\u0300-\u036f]/g, '');
 
     return palabras.some(palabra => {
-        const palabraNormalizada =
-            palabra
-                .normalize('NFD')
-                .replace(/[\u0300-\u036f]/g, '');
+        const palabraNormalizada = palabra
+            .normalize('NFD')
+            .replace(/[\u0300-\u036f]/g, '');
 
-        return texto.includes(
-            palabraNormalizada
-        );
+        return texto.includes(palabraNormalizada);
     });
 }
 
-/*
-=========================
-GENERAR IMAGEN
-=========================
-*/
+/* =========================================================
+   🖼️ GENERAR IMAGEN
+========================================================= */
 
 async function generarImagen(prompt) {
 
@@ -84,12 +77,6 @@ async function generarImagen(prompt) {
         );
     }
 
-    /*
-    =========================
-    BLOQUEO NSFW
-    =========================
-    */
-
     if (esNSFW(prompt)) {
         throw new Error(
             'Milo no puede generar imágenes con contenido NSFW.'
@@ -97,47 +84,38 @@ async function generarImagen(prompt) {
     }
 
     try {
+
         console.log(
-            `🖼️ Generando imagen con ${MODELO_IMAGEN}...`
+            `🖼️ Generando imagen...`
         );
 
-        const imagen =
-            await hf.textToImage({
-                model: MODELO_IMAGEN,
-                inputs: prompt,
-                parameters: {
-                    num_inference_steps: 4
-                }
-            });
+        const imagen = await hf.textToImage({
+            model: MODELO_IMAGEN,
+            inputs: prompt,
+            parameters: {
+                num_inference_steps: 4
+            }
+        });
 
         let buffer;
 
-        /*
-        =========================
-        CONVERTIR RESPUESTA
-        =========================
-        */
+        /* =====================================================
+           📦 CONVERTIR RESPUESTA A BUFFER
+        ===================================================== */
 
         if (Buffer.isBuffer(imagen)) {
 
             buffer = imagen;
 
-        } else if (
-            imagen instanceof ArrayBuffer
-        ) {
+        } else if (imagen instanceof ArrayBuffer) {
 
-            buffer =
-                Buffer.from(imagen);
+            buffer = Buffer.from(imagen);
 
-        } else if (
-            imagen?.arrayBuffer
-        ) {
+        } else if (imagen?.arrayBuffer) {
 
-            const datos =
-                await imagen.arrayBuffer();
+            const datos = await imagen.arrayBuffer();
 
-            buffer =
-                Buffer.from(datos);
+            buffer = Buffer.from(datos);
 
         } else {
 
@@ -146,16 +124,12 @@ async function generarImagen(prompt) {
             );
         }
 
-        /*
-        =========================
-        COMPROBAR IMAGEN
-        =========================
-        */
+        /* =====================================================
+           🔍 COMPROBAR IMAGEN
+        ===================================================== */
 
-        if (
-            !buffer ||
-            !buffer.length
-        ) {
+        if (!buffer || !buffer.length) {
+
             throw new Error(
                 'La imagen generada está vacía.'
             );
@@ -175,12 +149,6 @@ async function generarImagen(prompt) {
 
         console.error(error);
 
-        /*
-        =========================
-        ERRORES DE AUTORIZACIÓN
-        =========================
-        */
-
         if (
             error?.status === 401 ||
             error?.statusCode === 401
@@ -190,26 +158,23 @@ async function generarImagen(prompt) {
             );
         }
 
-        /*
-        =========================
-        LÍMITE DEL PROVEEDOR
-        =========================
-        */
+        if (
+            error?.status === 403 ||
+            error?.statusCode === 403
+        ) {
+            throw new Error(
+                'Hugging Face rechazó el acceso al modelo.'
+            );
+        }
 
         if (
             error?.status === 429 ||
             error?.statusCode === 429
         ) {
             throw new Error(
-                'Hugging Face alcanzó temporalmente el límite de solicitudes. Inténtalo nuevamente más tarde.'
+                'Hugging Face alcanzó temporalmente el límite de solicitudes. Inténtalo más tarde.'
             );
         }
-
-        /*
-        =========================
-        ERROR GENERAL
-        =========================
-        */
 
         throw new Error(
             'No se pudo generar la imagen. Inténtalo nuevamente.'
@@ -217,11 +182,9 @@ async function generarImagen(prompt) {
     }
 }
 
-/*
-=========================
-EXPORTAR
-=========================
-*/
+/* =========================================================
+   📤 EXPORTACIONES
+========================================================= */
 
 module.exports = {
     generarImagen,
