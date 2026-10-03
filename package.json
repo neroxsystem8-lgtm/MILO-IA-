@@ -1,46 +1,19 @@
-# ==============================
-# MILO IA
-# ==============================
-
-DISCORD_TOKEN=
-CLIENT_ID=
-
-# ==============================
-# GROQ
-# ==============================
-
-GROQ_API_KEY=
-GROQ_MODEL=
-
-# ==============================
-# IMÁGENES
-# ==============================
-
-IMAGE_API_KEY=
-IMAGE_MODEL=
-
-# ==============================
-# WEB + DISCORD LOGIN
-# ==============================
-
-WEB_PORT=3000
-DISCORD_CLIENT_SECRET=
-DISCORD_REDIRECT_URI=
-
-# ==============================
-# LOGS GLOBALES
-# ==============================
-
-GLOBAL_LOG_CHANNEL_ID=1553774365504569464
-
-# ==============================
-# NOTIFICACIONES
-# ==============================
-
-NOTIFICATION_CHANNEL_ID=1553527162336841759
-
-# ==============================
-# PREMIUM
-# ==============================
-
-PREMIUM_OWNER_ID=1553151134754152560
+{
+  "name": "milo-ia",
+  "version": "1.0.0",
+  "description": "Milo IA - Bot multifunción para Discord con IA, moderación, tickets, Premium y chat web.",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "dependencies": {
+    "discord.js": "^14.25.1",
+    "dotenv": "^17.2.3",
+    "express": "^5.1.0",
+    "@discordjs/rest": "^2.6.0",
+    "discord-api-types": "^0.38.31"
+  }
+}
