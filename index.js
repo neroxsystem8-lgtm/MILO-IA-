@@ -1,56 +1,18 @@
-/* =========================================================
-   MILO IA
-   INDEX.JS
-   ========================================================= */
-
-require('dotenv').config();
-
-const fs = require('fs');
-const path = require('path');
+require("dotenv").config();
 
 const {
     Client,
     GatewayIntentBits,
     Partials,
-    ActivityType,
-    AttachmentBuilder,
-    EmbedBuilder,
-    ActionRowBuilder,
-    StringSelectMenuBuilder,
-    StringSelectMenuOptionBuilder,
-    ButtonBuilder,
-    ButtonStyle,
-    PermissionFlagsBits
-} = require('discord.js');
+    ActivityType
+} = require("discord.js");
 
+const funciones = require("./funciones");
+require("./web");
 
-/* =========================================================
-   CONFIGURACIÓN
-   ========================================================= */
-
-const TOKEN = process.env.DISCORD_TOKEN;
-
-if (!TOKEN) {
-    console.error('❌ Falta DISCORD_TOKEN en el archivo .env');
-    process.exit(1);
-}
-
-const SERVIDOR_GLOBAL =
-    process.env.SERVIDOR_GLOBAL || '1553169784697528450';
-
-const ROL_GLOBAL =
-    process.env.ROL_GLOBAL || '1553526636547280967';
-
-const CANAL_LOGS_GLOBAL =
-    process.env.CANAL_LOGS_GLOBAL || '1553774248324104232';
-
-const SERVIDOR_SOPORTE =
-    'https://discord.gg/csnebvXgSv';
-
-
-/* =========================================================
-   CLIENTE DISCORD
-   ========================================================= */
+/* =========================
+   CLIENTE DE DISCORD
+========================= */
 
 const client = new Client({
     intents: [
@@ -58,3050 +20,731 @@ const client = new Client({
         GatewayIntentBits.GuildMembers,
         GatewayIntentBits.GuildMessages,
         GatewayIntentBits.MessageContent,
-        GatewayIntentBits.DirectMessages,
-        GatewayIntentBits.GuildModeration
+        GatewayIntentBits.GuildModeration,
+        GatewayIntentBits.GuildInvites
     ],
 
     partials: [
         Partials.Channel,
         Partials.Message,
-        Partials.User
+        Partials.User,
+        Partials.GuildMember
     ]
 });
 
-
-/* =========================================================
-   MÓDULOS
-   ========================================================= */
-
-const comandos = require('./comandos');
-
-const {
-    preguntarGroq
-} = require('./groq');
-
-const {
-    generarImagen
-} = require('./imagenes');
-
-const {
-    obtenerIdioma,
-    establecerIdioma,
-    obtenerNombreIdioma,
-    obtenerIdiomas
-} = require('./idiomas');
-
-const utilidades = require('./utilidades');
-
-const antiinsultos = require('./antiinsultos');
-
-const sancion = require('./sancion');
-
-const moderacion = require('./moderacion');
-
-const logs = require('./logs');
-
-const gestionServidor = require('./gestion-servidor');
-
-
-/* =========================================================
-   ARCHIVOS JSON
-   ========================================================= */
-
-const ARCHIVOS = {
-    conversaciones: path.join(__dirname, 'conversaciones.json'),
-    premium: path.join(__dirname, 'premium.json'),
-    usos: path.join(__dirname, 'usos.json'),
-    codigosPremium: path.join(__dirname, 'codigos-premium.json'),
-    sugerencias: path.join(__dirname, 'sugerencias.json'),
-    paneles: path.join(__dirname, 'paneles.json'),
-    tickets: path.join(__dirname, 'tickets.json'),
-    configuracion: path.join(__dirname, 'config-servidores.json'),
-    canalesIA: path.join(__dirname, 'canales-ia.json'),
-    sanciones: path.join(__dirname, 'sanciones.json')
-};
-
-
-/* =========================================================
-   CREAR ARCHIVOS SI NO EXISTEN
-   ========================================================= */
-
-function prepararArchivos() {
-
-    for (const archivo of Object.values(ARCHIVOS)) {
-
-        try {
-
-            if (!fs.existsSync(archivo)) {
-
-                fs.writeFileSync(
-                    archivo,
-                    '{}',
-                    'utf8'
-                );
-
-            }
-
-        } catch (error) {
-
-            console.error(
-                `❌ Error preparando ${archivo}:`,
-                error
-            );
-
-        }
-
-    }
-
-}
-
-prepararArchivos();
-
-
-/* =========================================================
-   JSON
-   ========================================================= */
-
-function cargarJSON(archivo) {
-
-    try {
-
-        if (!fs.existsSync(archivo)) {
-            return {};
-        }
-
-        const datos = JSON.parse(
-            fs.readFileSync(
-                archivo,
-                'utf8'
-            )
-        );
-
-        return datos && typeof datos === 'object'
-            ? datos
-            : {};
-
-    } catch (error) {
-
-        console.error(
-            `❌ Error leyendo ${archivo}:`,
-            error
-        );
-
-        return {};
-
-    }
-
-}
-
-
-function guardarJSON(archivo, datos) {
-
-    try {
-
-        fs.writeFileSync(
-            archivo,
-            JSON.stringify(
-                datos,
-                null,
-                2
-            ),
-            'utf8'
-        );
-
-        return true;
-
-    } catch (error) {
-
-        console.error(
-            `❌ Error guardando ${archivo}:`,
-            error
-        );
-
-        return false;
-
-    }
-
-}
-
-
-/* =========================================================
-   CONVERSACIONES
-   ========================================================= */
-
-function obtenerConversacion(usuarioId) {
-
-    const datos =
-        cargarJSON(
-            ARCHIVOS.conversaciones
-        );
-
-    return datos[usuarioId] || [];
-
-}
-
-
-function guardarConversacion(
-    usuarioId,
-    role,
-    content
-) {
-
-    const datos =
-        cargarJSON(
-            ARCHIVOS.conversaciones
-        );
-
-    if (!datos[usuarioId]) {
-        datos[usuarioId] = [];
-    }
-
-    datos[usuarioId].push({
-        role,
-        content,
-        fecha: new Date().toISOString()
-    });
-
-    /*
-       Evitamos que el archivo crezca
-       indefinidamente.
-    */
-
-    if (datos[usuarioId].length > 30) {
-
-        datos[usuarioId] =
-            datos[usuarioId].slice(-30);
-
-    }
-
-    guardarJSON(
-        ARCHIVOS.conversaciones,
-        datos
+/* =========================
+   CONFIGURACIÓN
+========================= */
+
+const GLOBAL_LOG_CHANNEL_ID =
+    process.env.GLOBAL_LOG_CHANNEL_ID ||
+    "1553774365504569464";
+
+const NOTIFICATION_CHANNEL_ID =
+    process.env.NOTIFICATION_CHANNEL_ID ||
+    "1553527162336841759";
+
+/* =========================
+   DATOS
+========================= */
+
+let datos;
+
+try {
+    datos = funciones.cargarDatos();
+} catch (error) {
+    console.error(
+        "❌ No se pudieron cargar los datos:",
+        error
     );
 
+    process.exit(1);
 }
 
-
-function borrarConversacion(usuarioId) {
-
-    const datos =
-        cargarJSON(
-            ARCHIVOS.conversaciones
-        );
-
-    delete datos[usuarioId];
-
-    guardarJSON(
-        ARCHIVOS.conversaciones,
-        datos
-    );
-
-}
-
-
-/* =========================================================
-   CANAL DE IA
-   ========================================================= */
-
-function obtenerCanalIA(guildId) {
-
-    const datos =
-        cargarJSON(
-            ARCHIVOS.canalesIA
-        );
-
-    return datos[guildId] || null;
-
-}
-
-
-function configurarCanalIA(
-    guildId,
-    canalId
-) {
-
-    const datos =
-        cargarJSON(
-            ARCHIVOS.canalesIA
-        );
-
-    datos[guildId] = canalId;
-
-    guardarJSON(
-        ARCHIVOS.canalesIA,
-        datos
-    );
-
-}
-
-
-/* =========================================================
-   PREMIUM
-   ========================================================= */
-
-function obtenerPremium(usuarioId) {
-
-    const datos =
-        cargarJSON(
-            ARCHIVOS.premium
-        );
-
-    return datos[usuarioId] || null;
-
-}
-
-
-function usuarioTienePremium(usuarioId) {
-
-    const premium =
-        obtenerPremium(usuarioId);
-
-    if (!premium) {
-        return false;
-    }
-
-    if (
-        premium.expira &&
-        Date.now() >=
-        new Date(premium.expira).getTime()
-    ) {
-
-        const datos =
-            cargarJSON(
-                ARCHIVOS.premium
-            );
-
-        delete datos[usuarioId];
-
-        guardarJSON(
-            ARCHIVOS.premium,
-            datos
-        );
-
-        return false;
-
-    }
-
-    return true;
-
-}
-
-
-function obtenerPlanPremium(usuarioId) {
-
-    const premium =
-        obtenerPremium(usuarioId);
-
-    if (!premium) {
-        return null;
-    }
-
-    return premium.plan || 'Premium';
-
-}
-
-
-/* =========================================================
-   USOS
-   ========================================================= */
-
-function obtenerUsos(usuarioId) {
-
-    const datos =
-        cargarJSON(
-            ARCHIVOS.usos
-        );
-
-    const hoy =
-        new Date()
-            .toISOString()
-            .slice(0, 10);
-
-    if (!datos[usuarioId]) {
-
-        datos[usuarioId] = {
-            fecha: hoy,
-            imagenes: 0,
-            preguntas: 0
-        };
-
-        guardarJSON(
-            ARCHIVOS.usos,
-            datos
-        );
-
-    }
-
-    if (datos[usuarioId].fecha !== hoy) {
-
-        datos[usuarioId] = {
-            fecha: hoy,
-            imagenes: 0,
-            preguntas: 0
-        };
-
-        guardarJSON(
-            ARCHIVOS.usos,
-            datos
-        );
-
-    }
-
-    return datos[usuarioId];
-
-}
-
-
-function registrarUso(
-    usuarioId,
-    tipo
-) {
-
-    const datos =
-        cargarJSON(
-            ARCHIVOS.usos
-        );
-
-    const usos =
-        obtenerUsos(usuarioId);
-
-    datos[usuarioId] = usos;
-
-    if (
-        typeof datos[usuarioId][tipo]
-        !== 'number'
-    ) {
-
-        datos[usuarioId][tipo] = 0;
-
-    }
-
-    datos[usuarioId][tipo]++;
-
-    guardarJSON(
-        ARCHIVOS.usos,
-        datos
-    );
-
-}
-
-
-/* =========================================================
-   LÍMITES
-   ========================================================= */
-
-function limitePreguntas(usuarioId) {
-
-    if (
-        usuarioTienePremium(usuarioId)
-    ) {
-
-        return Infinity;
-
-    }
-
-    return 100;
-
-}
-
-
-function limiteImagenes(usuarioId) {
-
-    if (
-        usuarioTienePremium(usuarioId)
-    ) {
-
-        return 20;
-
-    }
-
-    return 3;
-
-}
-
-
-/* =========================================================
-   DIVIDIR MENSAJES
-   ========================================================= */
-
-function dividirMensaje(texto) {
-
-    const partes = [];
-
-    const limite = 1900;
-
-    if (!texto) {
-        return partes;
-    }
-
-    for (
-        let i = 0;
-        i < texto.length;
-        i += limite
-    ) {
-
-        partes.push(
-            texto.slice(
-                i,
-                i + limite
-            )
-        );
-
-    }
-
-    return partes;
-
-}
-
-
-/* =========================================================
+/* =========================
    PRESENCIA
-   ========================================================= */
-
-const actividades = [
-
-    '+10 bots en funcionamiento | /ayuda',
-    'Milo IA | /ayuda',
-    '🤖 Respondiendo preguntas',
-    '🧠 Inteligencia artificial',
-    '🎫 Sistema de tickets',
-    '💎 Sistema Premium',
-    '🛡️ Moderación global',
-    '⚡ Milo está activo'
-
-];
-
-let actividadActual = 0;
-
+========================= */
 
 function actualizarPresencia() {
-
-    if (!client.user) {
-        return;
-    }
+    if (!client.user) return;
 
     client.user.setPresence({
-
-        status: 'dnd',
-
         activities: [
             {
-                name:
-                    actividades[
-                        actividadActual
-                    ],
+                name: "Milo IA",
+                type: ActivityType.Playing
+            }
+        ],
+        status: "online"
+    });
+}
 
-                type:
-                    ActivityType.Watching
+/* =========================
+   LOG GLOBAL
+========================= */
+
+async function logGlobal({
+    titulo,
+    descripcion,
+    color = 0x5865f2,
+    campos = []
+}) {
+    try {
+        const canal =
+            await client.channels.fetch(
+                GLOBAL_LOG_CHANNEL_ID
+            ).catch(() => null);
+
+        if (!canal || !canal.isTextBased()) {
+            return;
+        }
+
+        const embed = {
+            title: titulo,
+            description:
+                descripcion || undefined,
+            color,
+            fields: campos,
+            timestamp: new Date()
+        };
+
+        await canal.send({
+            embeds: [embed]
+        });
+    } catch (error) {
+        console.error(
+            "❌ Error en log global:",
+            error.message
+        );
+    }
+}
+
+/* =========================
+   INVITACIÓN PERMANENTE
+========================= */
+
+async function obtenerInvitacion(guild) {
+    try {
+        const yo =
+            guild.members.me;
+
+        if (!yo) return null;
+
+        const canales =
+            guild.channels.cache.filter(
+                canal =>
+                    canal.isTextBased() &&
+                    canal
+                        .permissionsFor(yo)
+                        ?.has("CreateInstantInvite")
+            );
+
+        const canal =
+            canales.first();
+
+        if (!canal) return null;
+
+        const invite =
+            await canal.createInvite({
+                maxAge: 0,
+                maxUses: 0,
+                unique: true,
+                reason:
+                    "Invitación permanente de Milo IA"
+            });
+
+        return invite.url;
+    } catch {
+        return null;
+    }
+}
+
+/* =========================
+   NOTIFICACIONES
+========================= */
+
+async function notificarEntrada(guild) {
+    try {
+        const canal =
+            await client.channels.fetch(
+                NOTIFICATION_CHANNEL_ID
+            ).catch(() => null);
+
+        if (!canal || !canal.isTextBased()) {
+            return;
+        }
+
+        const owner =
+            await guild.fetchOwner()
+                .catch(() => null);
+
+        const invite =
+            await obtenerInvitacion(guild);
+
+        const embed = {
+            color: 0x57f287,
+            title:
+                "🤖 Milo fue añadido a un servidor",
+
+            fields: [
+                {
+                    name: "🏠 Servidor",
+                    value:
+                        guild.name ||
+                        "Desconocido",
+                    inline: true
+                },
+
+                {
+                    name: "👥 Miembros",
+                    value:
+                        String(
+                            guild.memberCount || 0
+                        ),
+                    inline: true
+                },
+
+                {
+                    name: "👑 Propietario",
+                    value:
+                        owner?.user?.tag ||
+                        owner?.user?.username ||
+                        "Desconocido",
+                    inline: true
+                },
+
+                {
+                    name: "📅 Fecha",
+                    value:
+                        `<t:${Math.floor(
+                            Date.now() / 1000
+                        )}:F>`,
+                    inline: false
+                },
+
+                {
+                    name: "🔗 Invitar a Milo",
+                    value:
+                        invite ||
+                        "No se pudo generar una invitación.",
+                    inline: false
+                },
+
+                {
+                    name: "🌐 Servidores",
+                    value:
+                        String(
+                            client.guilds.cache.size
+                        ),
+                    inline: true
+                }
+            ],
+
+            timestamp: new Date()
+        };
+
+        await canal.send({
+            embeds: [embed]
+        });
+
+        await logGlobal({
+            titulo:
+                "🤖 Milo entró a un servidor",
+
+            color: 0x57f287,
+
+            campos: [
+                {
+                    name: "🏠 Servidor",
+                    value: guild.name,
+                    inline: true
+                },
+                {
+                    name: "👥 Miembros",
+                    value:
+                        String(
+                            guild.memberCount || 0
+                        ),
+                    inline: true
+                },
+                {
+                    name: "🌐 Servidores",
+                    value:
+                        String(
+                            client.guilds.cache.size
+                        ),
+                    inline: true
+                }
+            ]
+        });
+    } catch (error) {
+        console.error(
+            "❌ Error notificando entrada:",
+            error.message
+        );
+    }
+}
+
+async function notificarSalida(guild) {
+    try {
+        const canal =
+            await client.channels.fetch(
+                NOTIFICATION_CHANNEL_ID
+            ).catch(() => null);
+
+        const embed = {
+            color: 0xed4245,
+            title:
+                "🚪 Milo salió de un servidor",
+
+            fields: [
+                {
+                    name: "🏠 Servidor",
+                    value:
+                        guild.name ||
+                        "Desconocido",
+                    inline: true
+                },
+
+                {
+                    name: "👥 Miembros",
+                    value:
+                        String(
+                            guild.memberCount || 0
+                        ),
+                    inline: true
+                },
+
+                {
+                    name: "📅 Fecha",
+                    value:
+                        `<t:${Math.floor(
+                            Date.now() / 1000
+                        )}:F>`,
+                    inline: false
+                },
+
+                {
+                    name: "🌐 Servidores actuales",
+                    value:
+                        String(
+                            client.guilds.cache.size
+                        ),
+                    inline: true
+                }
+            ],
+
+            timestamp: new Date()
+        };
+
+        if (canal?.isTextBased()) {
+            await canal.send({
+                embeds: [embed]
+            });
+        }
+
+        await logGlobal({
+            titulo:
+                "🚪 Milo salió de un servidor",
+
+            color: 0xed4245,
+
+            campos: [
+                {
+                    name: "🏠 Servidor",
+                    value:
+                        guild.name ||
+                        "Desconocido",
+                    inline: true
+                },
+
+                {
+                    name: "👥 Miembros",
+                    value:
+                        String(
+                            guild.memberCount || 0
+                        ),
+                    inline: true
+                },
+
+                {
+                    name: "🌐 Servidores",
+                    value:
+                        String(
+                            client.guilds.cache.size
+                        ),
+                    inline: true
+                }
+            ]
+        });
+    } catch (error) {
+        console.error(
+            "❌ Error notificando salida:",
+            error.message
+        );
+    }
+}
+
+/* =========================
+   READY
+========================= */
+
+client.once("ready", async () => {
+    console.log("");
+    console.log("================================");
+    console.log("🤖 MILO IA");
+    console.log("================================");
+    console.log(
+        `👤 ${client.user.tag}`
+    );
+    console.log(
+        `🌐 Servidores: ${client.guilds.cache.size}`
+    );
+    console.log(
+        `📡 Ping: ${client.ws.ping}ms`
+    );
+    console.log("================================");
+    console.log("");
+
+    actualizarPresencia();
+
+    /*
+     * Inicialización general de cada servidor.
+     */
+
+    for (
+        const guild of client.guilds.cache.values()
+    ) {
+        try {
+            if (!datos.servers[guild.id]) {
+                datos.servers[guild.id] = {
+                    idioma: "es",
+                    premium: null,
+                    tickets: {},
+                    configuracion: {},
+                    uso: {
+                        ia: 0,
+                        imagenes: 0,
+                        tickets: 0
+                    }
+                };
+            }
+
+            /*
+             * Si funciones.js tiene un
+             * inicializador de servidor,
+             * se ejecuta automáticamente.
+             */
+
+            if (
+                typeof funciones.inicializarServidor ===
+                "function"
+            ) {
+                await funciones.inicializarServidor(
+                    client,
+                    guild,
+                    datos
+                );
+            }
+        } catch (error) {
+            console.error(
+                `❌ Error inicializando ${guild.name}:`,
+                error.message
+            );
+        }
+    }
+
+    funciones.guardarDatos(datos);
+
+    await logGlobal({
+        titulo: "🟢 Milo IA iniciado",
+        descripcion:
+            "Milo IA se encuentra conectado y operativo.",
+        color: 0x57f287,
+
+        campos: [
+            {
+                name: "🌐 Servidores",
+                value:
+                    String(
+                        client.guilds.cache.size
+                    ),
+                inline: true
+            },
+
+            {
+                name: "📡 Ping",
+                value:
+                    `${client.ws.ping}ms`,
+                inline: true
             }
         ]
-
     });
-
-    actividadActual++;
-
-    if (
-        actividadActual >=
-        actividades.length
-    ) {
-
-        actividadActual = 0;
-
-    }
-
-}
-
-
-/* =========================================================
-   RESPUESTA DE IA
-   ========================================================= */
-
-async function responderIA(
-    usuarioId,
-    pregunta,
-    idioma = 'es'
-) {
-
-    const historial =
-        obtenerConversacion(
-            usuarioId
-        );
-
-    let contexto = '';
-
-    if (historial.length) {
-
-        contexto =
-            historial
-                .slice(-10)
-                .map(
-                    mensaje =>
-                        `${mensaje.role}: ${mensaje.content}`
-                )
-                .join('\n');
-
-    }
-
-    const prompt = `
-
-CONTEXTO DE CONVERSACIÓN:
-${contexto || 'No existe conversación anterior.'}
-
-NUEVO MENSAJE:
-${pregunta}
-
-Responde al usuario de forma clara,
-natural y útil.
-
-No inventes información.
-
-Si solicita código,
-proporciona código funcional.
-
-Idioma:
-${obtenerNombreIdioma(idioma)}
-
-`;
-
-    const respuesta =
-        await preguntarGroq(
-            prompt,
-            idioma
-        );
-
-    guardarConversacion(
-        usuarioId,
-        'user',
-        pregunta
-    );
-
-    guardarConversacion(
-        usuarioId,
-        'assistant',
-        respuesta
-    );
-
-    return respuesta;
-
-}
-
-
-/* =========================================================
-   DETECTAR PREGUNTA
-   ========================================================= */
-
-function obtenerPreguntaMensaje(
-    message
-) {
-
-    let contenido =
-        message.content.trim();
-
-    const nombreBot =
-        client.user?.username
-            ?.toLowerCase();
-
-    if (nombreBot) {
-
-        const regex =
-            new RegExp(
-                `^${nombreBot}\\s*`,
-                'i'
-            );
-
-        contenido =
-            contenido.replace(
-                regex,
-                ''
-            );
-
-    }
-
-    if (
-        client.user &&
-        contenido.includes(
-            `<@${client.user.id}>`
-        )
-    ) {
-
-        contenido =
-            contenido.replace(
-                new RegExp(
-                    `<@!?${client.user.id}>`,
-                    'g'
-                ),
-                ''
-            );
-
-    }
-
-    return contenido.trim();
-
-}
-
-
-function debeResponderMensaje(
-    message
-) {
-
-    if (
-        !message ||
-        message.author.bot
-    ) {
-
-        return false;
-
-    }
-
-    const contenido =
-        message.content.trim();
-
-    if (!contenido) {
-        return false;
-    }
-
-    if (
-        contenido.startsWith('?')
-    ) {
-
-        return true;
-
-    }
-
-    if (
-        contenido
-            .toLowerCase()
-            .startsWith('milo ')
-    ) {
-
-        return true;
-
-    }
-
-    if (
-        contenido
-            .toLowerCase()
-            .startsWith('milo,')
-    ) {
-
-        return true;
-
-    }
-
-    if (
-        client.user &&
-        message.mentions.has(
-            client.user
-        )
-    ) {
-
-        return true;
-
-    }
-
-    if (
-        contenido.toLowerCase() ===
-        'ping'
-    ) {
-
-        return true;
-
-    }
-
-    const canalIA =
-        message.guild
-            ? obtenerCanalIA(
-                message.guild.id
-            )
-            : null;
-
-    if (
-        canalIA &&
-        canalIA === message.channel.id
-    ) {
-
-        return true;
-
-    }
-
-    return false;
-
-}
-
-
-/* =========================================================
-   AYUDA
-   ========================================================= */
-
-function crearMenuAyuda() {
-
-    return new StringSelectMenuBuilder()
-        .setCustomId(
-            'milo_ayuda'
-        )
-        .setPlaceholder(
-            'Selecciona una categoría'
-        )
-        .addOptions(
-
-            new StringSelectMenuOptionBuilder()
-                .setLabel('IA')
-                .setDescription(
-                    'Preguntas y conversación'
-                )
-                .setValue('ia')
-                .setEmoji('🧠'),
-
-            new StringSelectMenuOptionBuilder()
-                .setLabel('Tickets')
-                .setDescription(
-                    'Paneles y tickets'
-                )
-                .setValue('tickets')
-                .setEmoji('🎫'),
-
-            new StringSelectMenuOptionBuilder()
-                .setLabel('Premium')
-                .setDescription(
-                    'Funciones Premium'
-                )
-                .setValue('premium')
-                .setEmoji('💎'),
-
-            new StringSelectMenuOptionBuilder()
-                .setLabel('Utilidades')
-                .setDescription(
-                    'Herramientas de Milo'
-                )
-                .setValue('utilidades')
-                .setEmoji('🛠️'),
-
-            new StringSelectMenuOptionBuilder()
-                .setLabel('Moderación')
-                .setDescription(
-                    'Moderación y sanciones'
-                )
-                .setValue('moderacion')
-                .setEmoji('🛡️'),
-
-            new StringSelectMenuOptionBuilder()
-                .setLabel('Servidor')
-                .setDescription(
-                    'Gestión del servidor'
-                )
-                .setValue('servidor')
-                .setEmoji('⚙️')
-
-        );
-
-}
-
-
-function embedAyuda(
-    categoria
-) {
-
-    const embed =
-        new EmbedBuilder()
-            .setColor(0x5865F2)
-            .setTitle(
-                '🤖 Milo IA'
-            )
-            .setTimestamp();
-
-    if (
-        categoria === 'ia'
-    ) {
-
-        embed
-            .setDescription(
-                [
-                    '### 🧠 Inteligencia artificial',
-                    '',
-                    '`/ia` — Preguntar a Milo',
-                    '`/preguntar` — Hacer una pregunta',
-                    '`/chat` — Conversación',
-                    '`/reiniciar` — Reiniciar conversación',
-                    '`/idioma` — Cambiar idioma',
-                    '`/imagen` — Generar una imagen'
-                ].join('\n')
-            );
-
-    }
-
-    else if (
-        categoria === 'tickets'
-    ) {
-
-        embed
-            .setDescription(
-                [
-                    '### 🎫 Tickets',
-                    '',
-                    '`/panel create` — Crear panel',
-                    '`/panel edit` — Editar panel',
-                    '',
-                    'Sistema de tickets privados,',
-                    'reclamar, cerrar, reabrir,',
-                    'transferir, renombrar y transcript.'
-                ].join('\n')
-            );
-
-    }
-
-    else if (
-        categoria === 'premium'
-    ) {
-
-        embed
-            .setDescription(
-                [
-                    '### 💎 Premium',
-                    '',
-                    'Funciones Premium disponibles',
-                    'para usuarios con Premium.',
-                    '',
-                    '• Más usos de IA',
-                    '• Más generaciones de imágenes',
-                    '• Funciones adicionales'
-                ].join('\n')
-            );
-
-    }
-
-    else if (
-        categoria === 'utilidades'
-    ) {
-
-        embed
-            .setDescription(
-                [
-                    '### 🛠️ Utilidades',
-                    '',
-                    '`/calcular`',
-                    '`/convertir`',
-                    '`/traducir`',
-                    '`/resumir`',
-                    '`/explicar`',
-                    '`/hora`',
-                    '`/fecha`',
-                    '`/contador`',
-                    '`/porcentaje`',
-                    '`/regla3`',
-                    '`/generar-password`'
-                ].join('\n')
-            );
-
-    }
-
-    else if (
-        categoria === 'moderacion'
-    ) {
-
-        embed
-            .setDescription(
-                [
-                    '### 🛡️ Moderación',
-                    '',
-                    '`/ban-global`',
-                    '`/unban-global`',
-                    '',
-                    'Sistema global de sanciones,',
-                    'logs y restauración.'
-                ].join('\n')
-            );
-
-    }
-
-    else if (
-        categoria === 'servidor'
-    ) {
-
-        embed
-            .setDescription(
-                [
-                    '### ⚙️ Servidor',
-                    '',
-                    '`/canal ia`',
-                    '`/estado`',
-                    '`/modelo`',
-                    '`/servidor`',
-                    '`/estadisticas`',
-                    '',
-                    'Funciones de configuración',
-                    'y administración.'
-                ].join('\n')
-            );
-
-    }
-
-    return embed;
-
-}
-
-
-/* =========================================================
-   READY
-   ========================================================= */
-
-client.once(
-    'ready',
-    async () => {
-
-        console.log(
-            '========================================'
-        );
-
-        console.log(
-            '🤖 MILO IA CONECTADO'
-        );
-
-        console.log(
-            `👤 Usuario: ${client.user.tag}`
-        );
-
-        console.log(
-            `🌐 Servidores: ${client.guilds.cache.size}`
-        );
-
-        console.log(
-            `🧠 Modelo: ${
-                process.env.GROQ_MODEL ||
-                'openai/gpt-oss-120b'
-            }`
-        );
-
-        console.log(
-            '========================================'
-        );
-
-        actualizarPresencia();
-
-        setInterval(
-            actualizarPresencia,
-            5 * 60 * 1000
-        );
-
-        try {
-
-            if (
-                 typeof comandos.registrarComandos
-                === 'function'
-            ) {
-
-                await comandos.registrarComandos(
-                    client
-                );
-
-                console.log(
-                    '✅ Comandos registrados.'
-                );
-
-            }
-
-        } catch (error) {
-
-            console.error(
-                '❌ Error registrando comandos:',
-                error
-            );
-
-        }
-
-        try {
-
-            if (
-                typeof moderacion.restaurarSanciones
-                === 'function'
-            ) {
-
-                await moderacion.restaurarSanciones(
-                    client
-                );
-
-                console.log(
-                    '🛡️ Sanciones restauradas.'
-                );
-
-            }
-
-        } catch (error) {
-
-            console.error(
-                '❌ Error restaurando sanciones:',
-                error
-            );
-
-        }
-
-    }
-);
-
-
-/* =========================================================
-   MENSAJES
-   ========================================================= */
+});
+
+/* =========================
+   NUEVO SERVIDOR
+========================= */
 
 client.on(
-    'messageCreate',
-    async message => {
+    "guildCreate",
+    async guild => {
+        console.log(
+            `➕ Milo entró a: ${guild.name}`
+        );
 
         try {
-
-            if (
-                message.author.bot
-            ) {
-
-                return;
-
-            }
-
-
-            /* -----------------------------------------
-               ANTIINSULTOS
-            ----------------------------------------- */
-
-            if (
-                typeof antiinsultos.manejarAntiInsultos
-                === 'function'
-            ) {
-
-                const resultado =
-                    await antiinsultos.manejarAntiInsultos(
-                        message
-                    );
-
-                if (resultado) {
-                    return;
-                }
-
-            }
-
-
-            /* -----------------------------------------
-               IA
-            ----------------------------------------- */
-
-            if (
-                !debeResponderMensaje(
-                    message
-                )
-            ) {
-
-                return;
-
-            }
-
-
-            const pregunta =
-                obtenerPreguntaMensaje(
-                    message
-                );
-
-
-            if (!pregunta) {
-
-                await message.reply(
-                    '🤖 ¿Qué quieres preguntarme?'
-                );
-
-                return;
-
-            }
-
-
-            /* -----------------------------------------
-               PING
-            ----------------------------------------- */
-
-            if (
-                pregunta.toLowerCase() ===
-                'ping'
-            ) {
-
-                await message.reply(
-                    `🏓 Pong!\nLatencia: ${client.ws.ping}ms`
-                );
-
-                return;
-
-            }
-
-
-            /* -----------------------------------------
-               LÍMITE
-            ----------------------------------------- */
-
-            const usos =
-                obtenerUsos(
-                    message.author.id
-                );
-
-            const limite =
-                limitePreguntas(
-                    message.author.id
-                );
-
-            if (
-                usos.preguntas >= limite
-            ) {
-
-                await message.reply(
-                    [
-                        '⚠️ Has alcanzado tu límite diario.',
-                        '',
-                        '💎 Con Premium tienes límites superiores.'
-                    ].join('\n')
-                );
-
-                return;
-
-            }
-
-
-            registrarUso(
-                message.author.id,
-                'preguntas'
-            );
-
-
-             /* -----------------------------------------
-               PENSANDO
-            ----------------------------------------- */
-
-            let reaccion = null;
-
-            try {
-
-                reaccion =
-                    await message.react('🤔');
-
-            } catch {}
-
-
-            const idioma =
-                obtenerIdioma(
-                    message.author.id
-                );
-
-
-            const respuesta =
-                await responderIA(
-                    message.author.id,
-                    pregunta,
-                    idioma
-                );
-
-
-            try {
-
-                if (reaccion) {
-                    await reaccion.users.remove(
-                        client.user.id
-                    );
-                }
-
-            } catch {}
-
-
-            const partes =
-                dividirMensaje(
-                    respuesta
-                );
-
-
-            for (
-                const parte of partes
-            ) {
-
-                await message.reply(
-                    parte
-                );
-
-            }
-
-
-            try {
-
-                await message.react('✅');
-
-            } catch {}
-
-
-        } catch (error) {
-
-            console.error(
-                '❌ ERROR messageCreate:',
-                error
-            );
-
-            try {
-
-                await message.reply(
-                    '❌ Ocurrió un error al procesar tu mensaje.'
-                );
-
-            } catch {}
-
-        }
-
-    }
-);
-
-
-/* =========================================================
-   INTERACCIONES
-   ========================================================= */
-
-client.on(
-    'interactionCreate',
-    async interaction => {
-
-        try {
-
-
-            /* =================================================
-               MENÚ DE AYUDA
-            ================================================= */
-
-            if (
-                interaction.isStringSelectMenu() &&
-                interaction.customId ===
-                'milo_ayuda'
-            ) {
-
-                const categoria =
-                    interaction.values[0];
-
-                await interaction.update({
-
-                    embeds: [
-                        embedAyuda(
-                            categoria
-                        )
-                    ],
-
-                    components: [
-                        new ActionRowBuilder()
-                            .addComponents(
-                                crearMenuAyuda()
-                            )
-                    ]
-
-                });
-
-                return;
-
-        }
-
-
-        /* =================================================
-               BOTONES
-            ================================================= */
-
-            if (
-                interaction.isButton()
-            ) {
-
-                const id =
-                    interaction.customId;
-
-
-                /* -----------------------------------------
-                   CERRAR TICKET
-                ----------------------------------------- */
-
-                if (
-                    id.startsWith(
-                        'ticket_cerrar_'
-                    )
-                ) {
-
-                    if (
-                        interaction.channel
-                    ) {
-
-                        await interaction.channel
-                            .send(
-                                '🔒 Este ticket será cerrado.'
-                            );
-
+            if (!datos.servers[guild.id]) {
+                datos.servers[guild.id] = {
+                    idioma: "es",
+                    premium: null,
+                    tickets: {},
+                    configuracion: {},
+                    uso: {
+                        ia: 0,
+                        imagenes: 0,
+                        tickets: 0
                     }
-
-                    return;
-
-                }
-
-
-                /* -----------------------------------------
-                   RECLAMAR TICKET
-                ----------------------------------------- */
-
-                if (
-                    id.startsWith(
-                        'ticket_reclamar_'
-                    )
-                ) {
-
-                    await interaction.reply({
-
-                        content:
-                            `🛡️ Ticket reclamado por ${interaction.user}.`,
-
-                        ephemeral: false
-
-                    });
-
-                    return;
-
-                }
-
+                };
             }
 
-
-            /* =================================================
-               SLASH COMMANDS
-            ================================================= */
+            funciones.guardarDatos(datos);
 
             if (
-                !interaction.isChatInputCommand()
+                typeof funciones.inicializarServidor ===
+                "function"
             ) {
-
-                return;
-
-            }
-
-
-            const nombre =
-                interaction.commandName;
-
-
-            /* =================================================
-               AYUDA
-            ================================================= */
-
-            if (
-                nombre === 'ayuda'
-            ) {
-
-                await interaction.reply({
-
-                    embeds: [
-                        embedAyuda('ia')
-                    ],
-
-                    components: [
-                        new ActionRowBuilder()
-                            .addComponents(
-                                crearMenuAyuda()
-                            )
-                    ]
-
-                });
-
-                return;
-
-            }
-
-
-            /* =================================================
-               IA
-            ================================================= */
-
-            if (
-                nombre === 'ia' ||
-                nombre === 'preguntar' ||
-                nombre === 'chat'
-            ) {
-
-                const pregunta =
-                    interaction.options.getString(
-                        'pregunta'
-                    );
-
-                if (!pregunta) {
-
-                    await interaction.reply({
-                        content:
-                            '❌ Debes escribir una pregunta.',
-                        ephemeral: true
-                    });
-
-                    return;
-
-                }
-
-
-                const usos =
-                    obtenerUsos(
-                        interaction.user.id
-                    );
-
-                const limite =
-                    limitePreguntas(
-                        interaction.user.id
-                    );
-
-                if (
-                    usos.preguntas >= limite
-                ) {
-
-                    await interaction.reply({
-
-                        content:
-                            '⚠️ Has alcanzado tu límite diario. 💎 Premium aumenta tus límites.',
-
-                        ephemeral: true
-
-                    });
-
-                    return;
-
-                }
-
-
-                registrarUso(
-                    interaction.user.id,
-                    'preguntas'
-                );
-
-
-                await interaction.deferReply();
-
-
-                const idioma =
-                    obtenerIdioma(
-                        interaction.user.id
-                    );
-
-
-                const respuesta =
-                    await responderIA(
-                        interaction.user.id,
-                        pregunta,
-                        idioma
-                    );
-
-
-                const partes =
-                    dividirMensaje(
-                        respuesta
-                    );
-
-
-                await interaction.editReply(
-                    partes[0]
-                );
-
-
-                for (
-                    let i = 1;
-                    i < partes.length;
-                    i++
-                ) {
-
-                    await interaction.followUp(
-                        partes[i]
-                    );
-
-                }
-
-                return;
-
-            }
-
-
-            /* =================================================
-               REINICIAR
-            ================================================= */
-
-            if (
-                nombre === 'reiniciar'
-            ) {
-
-                borrarConversacion(
-                    interaction.user.id
-                );
-
-                await interaction.reply(
-                    '🧹 Tu conversación con Milo ha sido reiniciada.'
-                );
-
-                return;
-
-        }
-
-
-        /* =================================================
-               IDIOMA
-            ================================================= */
-
-            if (
-                nombre === 'idioma'
-            ) {
-
-                const idioma =
-                    interaction.options.getString(
-                        'idioma'
-                    );
-
-                if (!idioma) {
-
-                    const disponibles =
-                        Object.entries(
-                            obtenerIdiomas()
-                        )
-                            .map(
-                                ([id, nombre]) =>
-                                    `\`${id}\` — ${nombre}`
-                            )
-                            .join('\n');
-
-                    await interaction.reply({
-
-                        content:
-                            `🌎 **Idiomas disponibles:**\n\n${disponibles}`,
-
-                        ephemeral: true
-
-                    });
-
-                    return;
-
-                }
-
-
-                establecerIdioma(
-                    interaction.user.id,
-                    idioma
-                );
-
-
-                await interaction.reply(
-                    `🌎 Idioma cambiado a **${obtenerNombreIdioma(idioma)}**.`
-                );
-
-                return;
-
-            }
-
-
-            /* =================================================
-               IMAGEN
-            ================================================= */
-
-            if (
-                nombre === 'imagen'
-            ) {
-
-                const prompt =
-                    interaction.options.getString(
-                        'prompt'
-                    );
-
-                if (!prompt) {
-
-                    await interaction.reply({
-
-                        content:
-                            '❌ Debes describir la imagen.',
-
-                        ephemeral: true
-
-                    });
-
-                    return;
-
-                }
-
-
-                const usos =
-                    obtenerUsos(
-                        interaction.user.id
-                    );
-
-                const limite =
-                    limiteImagenes(
-                        interaction.user.id
-                    );
-
-
-                if (
-                    usos.imagenes >= limite
-                ) {
-
-                    await interaction.reply({
-
-                        content:
-                            '⚠️ Has alcanzado tu límite diario de imágenes.',
-
-                        ephemeral: true
-
-                    });
-
-                    return;
-
-                }
-
-
-                await interaction.deferReply();
-
-
-                const imagen =
-                    await generarImagen(
-                        prompt
-                    );
-
-
-                registrarUso(
-                    interaction.user.id,
-                    'imagenes'
-                );
-
-
-                const archivo =
-                    new AttachmentBuilder(
-                        imagen,
-                        {
-                            name:
-                                'milo-imagen.png'
-                        }
-                    );
-
-
-                await interaction.editReply({
-
-                    content:
-                        '🖼️ **Imagen generada por Milo**',
-
-                    files: [
-                        archivo
-                    ]
-
-                });
-
-                return;
-
-            }
-
-
-            /* =================================================
-               CALCULAR
-            ================================================= */
-
-            if (
-                nombre === 'calcular'
-            ) {
-
-                const operacion =
-                    interaction.options.getString(
-                        'operacion'
-                    );
-
-                try {
-
-                    const resultado =
-                        utilidades.calcularOperacion(
-                            operacion
-                        );
-
-                    await interaction.reply(
-                        `🧮 Resultado: **${resultado}**`
-                    );
-
-                } catch (error) {
-
-                    await interaction.reply({
-                        content:
-                            `❌ ${error.message}`,
-                        ephemeral: true
-                    });
-
-                }
-
-                return;
-
-            }
-
-
-            /* =================================================
-               CONVERTIR
-            ================================================= */
-
-            if (
-                nombre === 'convertir'
-            ) {
-
-                const cantidad =
-                    interaction.options.getNumber(
-                        'cantidad'
-                    );
-
-                const de =
-                    interaction.options.getString(
-                        'de'
-                    );
-
-                const a =
-                    interaction.options.getString(
-                        'a'
-                    );
-
-                try {
-
-                    const resultado =
-                        utilidades.convertir(
-                            cantidad,
-                            de,
-                            a
-                        );
-
-                    await interaction.reply(
-                        `🔄 **${cantidad} ${de} = ${resultado} ${a}**`
-                    );
-
-                } catch (error) {
-
-                    await interaction.reply({
-                        content:
-                            `❌ ${error.message}`,
-                        ephemeral: true
-                    });
-
-                }
-
-                return;
-
-            }
-
-
-            /* =================================================
-               TRADUCIR
-            ================================================= */
-
-            if (
-                nombre === 'traducir'
-            ) {
-
-                const texto =
-                    interaction.options.getString(
-                        'texto'
-                    );
-
-                const idioma =
-                    interaction.options.getString(
-                        'idioma'
-                    );
-
-                await interaction.deferReply();
-
-                try {
-
-                    const resultado =
-                        await utilidades.traducir(
-                            texto,
-                            idioma
-                        );
-
-                    await interaction.editReply(
-                        resultado
-                    );
-
-                } catch (error) {
-
-                    await interaction.editReply(
-                        `❌ ${error.message}`
-                    );
-
-                }
-
-                return;
-
-            }
-
-
-            /* =================================================
-               RESUMIR
-            ================================================= */
-
-            if (
-                nombre === 'resumir'
-            ) {
-
-                const texto =
-                    interaction.options.getString(
-                        'texto'
-                    );
-
-                await interaction.deferReply();
-
-                try {
-
-                    const resultado =
-                        await utilidades.resumir(
-                            texto
-                        );
-
-                    await interaction.editReply(
-                        resultado
-                    );
-
-                } catch (error) {
-
-                    await interaction.editReply(
-                        `❌ ${error.message}`
-                    );
-
-                }
-
-                return;
-
-            }
-
-
-            /* =================================================
-               EXPLICAR
-            ================================================= */
-
-            if (
-                nombre === 'explicar'
-            ) {
-
-                const texto =
-                    interaction.options.getString(
-                        'texto'
-                    );
-
-                await interaction.deferReply();
-
-                try {
-
-                    const resultado =
-                        await utilidades.explicar(
-                            texto
-                        );
-
-                    await interaction.editReply(
-                        resultado
-                    );
-
-                } catch (error) {
-
-                    await interaction.editReply(
-                        `❌ ${error.message}`
-                    );
-
-                }
-
-                return;
-
-            }
-
-
-            /* =================================================
-               HORA
-            ================================================= */
-
-            if (
-                nombre === 'hora'
-            ) {
-
-                const zona =
-                    interaction.options.getString(
-                        'zona'
-                    ) ||
-                    'America/Bogota';
-
-                try {
-
-                    const hora =
-                        utilidades.obtenerHora(
-                            zona
-                        );
-
-                    await interaction.reply(
-                        `🕐 ${hora}`
-                    );
-
-                } catch (error) {
-
-                    await interaction.reply({
-                        content:
-                            `❌ ${error.message}`,
-                        ephemeral: true
-                    });
-
-                }
-
-                return;
-
-            }
-
-
-            /* =================================================
-               FECHA
-            ================================================= */
-
-            if (
-                nombre === 'fecha'
-            ) {
-
-                const zona =
-                    interaction.options.getString(
-                        'zona'
-                    ) ||
-                    'America/Bogota';
-
-                try {
-
-                    const fecha =
-                        utilidades.obtenerFecha(
-                            zona
-                        );
-
-                    await interaction.reply(
-                        `📅 ${fecha}`
-                    );
-
-                } catch (error) {
-
-                    await interaction.reply({
-                        content:
-                            `❌ ${error.message}`,
-                        ephemeral: true
-                    });
-
-                }
-
-                return;
-
-            }
-
-
-            /* =================================================
-               CONTADOR
-            ================================================= */
-
-            if (
-                nombre === 'contador'
-            ) {
-
-                const fecha =
-                    interaction.options.getString(
-                        'fecha'
-                    );
-
-                try {
-
-                    const resultado =
-                        utilidades.calcularContador(
-                            fecha
-                        );
-
-                    if (
-                        resultado.terminado
-                    ) {
-
-                        await interaction.reply(
-                            '⏰ El contador ya terminó.'
-                        );
-
-                    } else {
-
-                        await interaction.reply(
-                            `⏳ **${resultado.dias}d ${resultado.horas}h ${resultado.minutos}m ${resultado.segundos}s**`
-                        );
-
-                    }
-
-                } catch (error) {
-
-                    await interaction.reply({
-                        content:
-                            `❌ ${error.message}`,
-                        ephemeral: true
-                    });
-
-                }
-
-                return;
-
-            }
-
-
-             /* =================================================
-               PORCENTAJE
-            ================================================= */
-
-            if (
-                nombre === 'porcentaje'
-            ) {
-
-                const porcentaje =
-                    interaction.options.getNumber(
-                        'porcentaje'
-                    );
-
-                const cantidad =
-                    interaction.options.getNumber(
-                        'cantidad'
-                    );
-
-                try {
-
-                    const resultado =
-                        utilidades.calcularPorcentaje(
-                            porcentaje,
-                            cantidad
-                        );
-
-                    await interaction.reply(
-                        `📊 Resultado: **${resultado}**`
-                    );
-
-                } catch (error) {
-
-                    await interaction.reply({
-                        content:
-                            `❌ ${error.message}`,
-                        ephemeral: true
-                    });
-
-                }
-
-                return;
-
-            }
-
-
-            /* =================================================
-               REGLA DE 3
-            ================================================= */
-
-            if (
-                nombre === 'regla3'
-            ) {
-
-                const a =
-                    interaction.options.getNumber(
-                        'a'
-                    );
-
-                const b =
-                    interaction.options.getNumber(
-                        'b'
-                    );
-
-                const c =
-                    interaction.options.getNumber(
-                        'c'
-                    );
-
-                try {
-
-                    const resultado =
-                        utilidades.reglaTres(
-                            a,
-                            b,
-                            c
-                        );
-
-                    await interaction.reply(
-                        `📐 Resultado: **${resultado}**`
-                    );
-
-                } catch (error) {
-
-                    await interaction.reply({
-                        content:
-                            `❌ ${error.message}`,
-                        ephemeral: true
-                    });
-
-                }
-
-                return;
-
-            }
-
-
-             /* =================================================
-               PASSWORD
-            ================================================= */
-
-            if (
-                nombre === 'generar-password'
-            ) {
-
-                const longitud =
-                    interaction.options.getInteger(
-                        'longitud'
-                    ) || 16;
-
-                const password =
-                    utilidades.generarPassword(
-                        longitud
-                    );
-
-                await interaction.reply({
-
-                    content:
-                        `🔐 Contraseña generada:\n\`${password}\``,
-
-                    ephemeral: true
-
-                });
-
-                return;
-
-            }
-
-
-            /* =================================================
-               CANAL IA
-            ================================================= */
-
-            if (
-                nombre === 'canal'
-            ) {
-
-                const subcomando =
-                    interaction.options.getSubcommand();
-
-                if (
-                    subcomando === 'ia'
-                ) {
-
-                    if (
-                        !interaction.memberPermissions
-                            ?.has(
-                                PermissionFlagsBits
-                                    .ManageGuild
-                            )
-                    ) {
-
-                        await interaction.reply({
-
-                            content:
-                                '❌ Necesitas permisos para administrar el servidor.',
-
-                            ephemeral: true
-
-                        });
-
-                        return;
-
-                    }
-
-
-                    const canal =
-                        interaction.options.getChannel(
-                            'canal'
-                        );
-
-                    if (!canal) {
-
-                        await interaction.reply({
-
-                            content:
-                                '❌ Debes indicar un canal.',
-
-                            ephemeral: true
-
-                        });
-
-                        return;
-
-                    }
-
-
-                    configurarCanalIA(
-                        interaction.guild.id,
-                        canal.id
-                    );
-
-
-                    await interaction.reply(
-                        `🧠 Canal de IA configurado: ${canal}`
-                    );
-
-                    return;
-
-                }
-
-            }
-
-
-            /* =================================================
-               ESTADO
-            ================================================= */
-
-            if (
-                nombre === 'estado'
-            ) {
-
-                const uptime =
-                    process.uptime();
-
-                const segundos =
-                    Math.floor(
-                        uptime
-                    );
-
-                const horas =
-                    Math.floor(
-                        segundos / 3600
-                    );
-
-                const minutos =
-                    Math.floor(
-                        (segundos % 3600) / 60
-                    );
-
-                await interaction.reply({
-
-                    embeds: [
-
-                        new EmbedBuilder()
-                            .setColor(0x57F287)
-                            .setTitle(
-                                '🟢 Estado de Milo'
-                            )
-                            .addFields(
-
-                                {
-                                    name: '🤖 Estado',
-                                    value: 'En línea',
-                                    inline: true
-                                },
-
-                                {
-                                    name: '🌐 Servidores',
-                                    value:
-                                        String(
-                                            client.guilds.cache.size
-                                        ),
-                                    inline: true
-                                },
-
-                                {
-                                    name: '🏓 Ping',
-                                    value:
-                                        `${client.ws.ping}ms`,
-                                    inline: true
-                                },
-
-                                {
-                                    name: '⏱️ Tiempo activo',
-                                    value:
-                                        `${horas}h ${minutos}m`,
-                                    inline: true
-                                }
-
-                            )
-
-                    ]
-
-                });
-
-                return;
-
-            }
-
-
-            /* =================================================
-               MODELO
-            ================================================= */
-
-            if (
-                nombre === 'modelo'
-            ) {
-
-                await interaction.reply(
-                    `🧠 Modelo de IA: **${
-                        process.env.GROQ_MODEL ||
-                        'openai/gpt-oss-120b'
-                    }**`
-                );
-
-                return;
-
-            }
-
-
-            /* =================================================
-               SERVIDOR
-            ================================================= */
-
-            if (
-                nombre === 'servidor'
-            ) {
-
-                if (
-                    !interaction.guild
-                ) {
-
-                    await interaction.reply({
-                        content:
-                            '❌ Este comando solo funciona en servidores.',
-                        ephemeral: true
-                    });
-
-                    return;
-
-                }
-
-
-                await interaction.reply({
-
-                    embeds: [
-
-                        new EmbedBuilder()
-                            .setColor(0x5865F2)
-                            .setTitle(
-                                `🌐 ${interaction.guild.name}`
-                            )
-                            .addFields(
-
-                                {
-                                    name: '👥 Miembros',
-                                    value:
-                                        String(
-                                            interaction.guild.memberCount
-                                        ),
-                                    inline: true
-                                },
-
-                                {
-                                    name: '📁 Canales',
-                                    value:
-                                        String(
-                                            interaction.guild.channels.cache.size
-                                        ),
-                                    inline: true
-                                },
-
-                                {
-                                    name: '🛡️ Roles',
-                                    value:
-                                        String(
-                                            interaction.guild.roles.cache.size
-                                        ),
-                                    inline: true
-                                }
-
-                            )
-
-                    ]
-
-                });
-
-                return;
-
-            }
-
-
-             /* =================================================
-               USUARIO
-            ================================================= */
-
-            if (
-                nombre === 'usuario'
-            ) {
-
-                const usuario =
-                    interaction.options.getUser(
-                        'usuario'
-                    ) ||
-                    interaction.user;
-
-                await interaction.reply({
-
-                    embeds: [
-
-                        new EmbedBuilder()
-                            .setColor(0x5865F2)
-                            .setTitle(
-                                '👤 Información del usuario'
-                            )
-                            .setThumbnail(
-                                usuario.displayAvatarURL({
-                                    size: 512
-                                })
-                            )
-                            .addFields(
-
-                                {
-                                    name: '👤 Usuario',
-                                    value:
-                                        usuario.tag,
-                                    inline: true
-                                },
-
-                                {
-                                    name: '🆔 ID',
-                                    value:
-                                        usuario.id,
-                                    inline: true
-                                },
-
-                                {
-                                    name: '🤖 Bot',
-                                    value:
-                                        usuario.bot
-                                            ? 'Sí'
-                                            : 'No',
-                                    inline: true
-                                }
-
-                            )
-
-                    ]
-
-                });
-
-                return;
-
-            }
-
-
-            /* =================================================
-               AVATAR
-            ================================================= */
-
-            if (
-                nombre === 'avatar'
-            ) {
-
-                const usuario =
-                    interaction.options.getUser(
-                        'usuario'
-                    ) ||
-                    interaction.user;
-
-                await interaction.reply({
-
-                    content:
-                        usuario.displayAvatarURL({
-                            size: 4096
-                        })
-
-                });
-
-                return;
-
-            }
-
-
-            /* =================================================
-               PING
-            ================================================= */
-
-            if (
-                nombre === 'ping'
-            ) {
-
-                await interaction.reply(
-                    `🏓 Pong!\nLatencia: **${client.ws.ping}ms**`
-                );
-
-                return;
-
-            }
-
-
-            /* =================================================
-               ESTADÍSTICAS
-            ================================================= */
-
-            if (
-                nombre === 'estadisticas'
-            ) {
-
-                const usuarios =
-                    cargarJSON(
-                        ARCHIVOS.usos
-                    );
-
-                const totalUsuarios =
-                    Object.keys(
-                        usuarios
-                    ).length;
-
-                await interaction.reply({
-
-                    embeds: [
-
-                        new EmbedBuilder()
-                            .setColor(0x5865F2)
-                            .setTitle(
-                                '📊 Estadísticas de Milo'
-                            )
-                            .addFields(
-
-                                {
-                                    name: '🌐 Servidores',
-                                    value:
-                                        String(
-                                            client.guilds.cache.size
-                                        ),
-                                    inline: true
-                                },
-
-                                {
-                                    name: '👤 Usuarios registrados',
-                                    value:
-                                        String(
-                                            totalUsuarios
-                                        ),
-                                    inline: true
-                                },
-
-                                {
-                                    name: '🧠 Modelo',
-                                    value:
-                                        process.env.GROQ_MODEL ||
-                                        'Groq',
-                                    inline: true
-                                }
-
-                            )
-
-                    ]
-
-                });
-
-                return;
-
-            }
-
-
-            /* =================================================
-               INVITAR
-            ================================================= */
-
-            if (
-                nombre === 'invitar'
-            ) {
-
-                const url =
-                    `https://discord.com/oauth2/authorize?client_id=${client.user.id}&permissions=8&scope=bot%20applications.commands`;
-
-                await interaction.reply(
-                    `🤖 **Invita a Milo:**\n${url}`
-                );
-
-                return;
-
-            }
-
-
-            /* =================================================
-               BAN GLOBAL
-            ================================================= */
-
-            if (
-                nombre === 'ban-global'
-            ) {
-
-                if (
-                    !interaction.guild
-                ) {
-
-                    await interaction.reply({
-                        content:
-                            '❌ Este comando solo funciona en servidores.',
-                        ephemeral: true
-                    });
-
-                    return;
-
-                }
-
-
-                if (
-                    interaction.guild.id !==
-                    SERVIDOR_GLOBAL
-                ) {
-
-                    await interaction.reply({
-
-                        content:
-                            '❌ Este comando solo puede utilizarse desde el servidor autorizado.',
-
-                        ephemeral: true
-
-                    });
-
-                    return;
-
-                }
-
-
-                if (
-                    !interaction.member.roles.cache.has(
-                        ROL_GLOBAL
-                    )
-                ) {
-
-                    await interaction.reply({
-
-                        content:
-                            '❌ No tienes permisos para utilizar el ban global.',
-
-                        ephemeral: true
-
-                    });
-
-                    return;
-
-                }
-
-
-                const usuario =
-                    interaction.options.getString(
-                        'usuario'
-                    );
-
-                const razon =
-                    interaction.options.getString(
-                        'razon'
-                    ) ||
-                    'Sin razón especificada';
-
-                const duracion =
-                    interaction.options.getString(
-                        'duracion'
-                    ) ||
-                    'permanente';
-
-
-                if (
-                    typeof moderacion.banGlobal
-                    !== 'function'
-                ) {
-
-                    await interaction.reply({
-
-                        content:
-                            '❌ El sistema de moderación global no está disponible.',
-
-                        ephemeral: true
-
-                    });
-
-                    return;
-
-                }
-
-
-                await interaction.deferReply(
-                    {
-                        ephemeral: true
-                    }
-                );
-
-
-                await moderacion.banGlobal({
-
+                await funciones.inicializarServidor(
                     client,
-
-                    usuario,
-
-                    razon,
-
-                    duracion,
-
-                    moderadorId:
-                        interaction.user.id
-
-                });
-
-
-                await interaction.editReply(
-                    '🔨 Ban global ejecutado correctamente.'
+                    guild,
+                    datos
                 );
-
-                return;
-
             }
 
-
-            /* =================================================
-               UNBAN GLOBAL
-            ================================================= */
-
-            if (
-                nombre === 'unban-global'
-            ) {
-
-                if (
-                    interaction.guild?.id !==
-                    SERVIDOR_GLOBAL
-                ) {
-
-                    await interaction.reply({
-
-                        content:
-                            '❌ Este comando solo puede utilizarse desde el servidor autorizado.',
-
-                        ephemeral: true
-
-                    });
-
-                    return;
-
-                }
-
-
-                if (
-                    !interaction.member.roles.cache.has(
-                        ROL_GLOBAL
-                    )
-                ) {
-
-                    await interaction.reply({
-
-                        content:
-                            '❌ No tienes permisos.',
-
-                        ephemeral: true
-
-                    });
-
-                    return;
-
-                }
-
-
-                const usuario =
-                    interaction.options.getString(
-                        'usuario'
-                    );
-
-
-                await interaction.deferReply(
-                    {
-                        ephemeral: true
-                    }
-                );
-
-
-                if (
-                    typeof moderacion.unbanGlobal
-                    === 'function'
-                ) {
-
-                    await moderacion.unbanGlobal({
-
-                        client,
-
-                        usuario,
-
-                        moderadorId:
-                            interaction.user.id
-
-                    });
-
-                }
-
-
-                await interaction.editReply(
-                    '✅ Unban global ejecutado correctamente.'
-                );
-
-                return;
-
-            }
-
-
-             /* =================================================
-               PANEL
-               ================================================= */
-
-            if (
-                nombre === 'panel'
-            ) {
-
-                const subcomando =
-                    interaction.options.getSubcommand();
-
-
-                if (
-                    subcomando === 'create'
-                ) {
-
-                    if (
-                        !interaction.memberPermissions
-                            ?.has(
-                                PermissionFlagsBits
-                                    .ManageChannels
-                            )
-                    ) {
-
-                        await interaction.reply({
-
-                            content:
-                                '❌ Necesitas permisos para administrar canales.',
-
-                            ephemeral: true
-
-                        });
-
-                        return;
-
-                    }
-
-
-                    await interaction.reply({
-
-                        content:
-                            '🎫 **Creación de panel iniciada.**\n\nEl sistema de paneles debe encargarse de solicitar la configuración y crear el panel.',
-
-                        ephemeral: true
-
-                    });
-
-                    return;
-
-                }
-
-
-                if (
-                    subcomando === 'edit'
-                ) {
-
-                    await interaction.reply({
-
-                        content:
-                            '✏️ Sistema de edición de panel iniciado.',
-
-                        ephemeral: true
-
-                    });
-
-                    return;
-
-                }
-
-            }
-
-
-            /* =================================================
-               COMANDO DESCONOCIDO
-            ================================================= */
-
-            console.log(
-                `⚠️ Comando sin controlador: /${nombre}`
-            );
-
-
+            await notificarEntrada(guild);
         } catch (error) {
-
             console.error(
-                '❌ ERROR interactionCreate:',
+                "❌ Error en guildCreate:",
                 error
             );
-
-
-            try {
-
-                if (
-                    interaction.replied ||
-                    interaction.deferred
-                ) {
-
-                    await interaction.followUp({
-
-                        content:
-                            '❌ Ocurrió un error al ejecutar este comando.',
-
-                        ephemeral: true
-
-                    });
-
-                } else {
-
-                    await interaction.reply({
-
-                        content:
-                            '❌ Ocurrió un error al ejecutar este comando.',
-
-                        ephemeral: true
-
-                    });
-
-                }
-
-            } catch {}
-
         }
-
     }
 );
 
-
-
-/* =========================================================
-   ERRORES DEL CLIENTE
-   ========================================================= */
+/* =========================
+   SALIDA DE SERVIDOR
+========================= */
 
 client.on(
-    'error',
-    error => {
+    "guildDelete",
+    async guild => {
+        console.log(
+            `➖ Milo salió de: ${guild.name}`
+        );
 
+        await notificarSalida(guild);
+    }
+);
+
+/* =========================
+   MENSAJES
+========================= */
+
+client.on(
+    "messageCreate",
+    async message => {
+        try {
+            if (message.author.bot) {
+                return;
+            }
+
+            if (!message.guild) {
+                return;
+            }
+
+            /*
+             * Todo el procesamiento de Milo
+             * pasa por funciones.js.
+             */
+
+            if (
+                typeof funciones.procesarMensaje ===
+                "function"
+            ) {
+                await funciones.procesarMensaje(
+                    client,
+                    message,
+                    datos
+                );
+
+                return;
+            }
+
+            /*
+             * Compatibilidad mientras se termina
+             * de conectar funciones.js.
+             */
+
+            if (
+                typeof funciones.sumarEstadistica ===
+                "function"
+            ) {
+                funciones.sumarEstadistica(
+                    "messages"
+                );
+            }
+        } catch (error) {
+            console.error(
+                "❌ Error procesando mensaje:",
+                error
+            );
+
+            await logGlobal({
+                titulo:
+                    "❌ Error en messageCreate",
+                descripcion:
+                    error.message,
+                color: 0xed4245
+            });
+        }
+    }
+);
+
+/* =========================
+   INTERACCIONES
+========================= */
+
+client.on(
+    "interactionCreate",
+    async interaction => {
+        try {
+            if (
+                typeof funciones.procesarInteraccion ===
+                "function"
+            ) {
+                await funciones.procesarInteraccion(
+                    client,
+                    interaction,
+                    datos
+                );
+            }
+        } catch (error) {
+            console.error(
+                "❌ Error en interacción:",
+                error
+            );
+
+            try {
+                if (
+                    !interaction.replied &&
+                    !interaction.deferred
+                ) {
+                    await interaction.reply({
+                        content:
+                            "❌ Ocurrió un error al procesar esta acción.",
+                        ephemeral: true
+                    });
+                }
+            } catch {}
+        }
+    }
+);
+
+/* =========================
+   ERRORES
+========================= */
+
+client.on(
+    "error",
+    error => {
         console.error(
-            '❌ Discord Client Error:',
+            "❌ Error de Discord:",
             error
         );
-
     }
 );
 
-
 client.on(
-    'warn',
+    "warn",
     warning => {
-
         console.warn(
-            '⚠️ Discord Warning:',
+            "⚠️ Discord:",
             warning
         );
-
     }
 );
-
 
 process.on(
-    'unhandledRejection',
+    "unhandledRejection",
     error => {
-
         console.error(
-            '❌ Unhandled Rejection:',
+            "❌ Unhandled Rejection:",
             error
         );
-
     }
 );
-
 
 process.on(
-    'uncaughtException',
+    "uncaughtException",
     error => {
-
         console.error(
-            '❌ Uncaught Exception:',
+            "❌ Uncaught Exception:",
             error
         );
-
     }
 );
 
+/* =========================
+   APAGADO SEGURO
+========================= */
 
-/* =========================================================
+async function apagar(signal) {
+    console.log(
+        `\n🛑 Recibida señal ${signal}.`
+    );
+
+    try {
+        funciones.guardarDatos(datos);
+
+        await logGlobal({
+            titulo: "🔴 Milo IA detenido",
+            descripcion:
+                `Milo IA se está apagando (${signal}).`,
+            color: 0xed4245
+        });
+    } catch {}
+
+    client.destroy();
+
+    process.exit(0);
+}
+
+process.on(
+    "SIGINT",
+    () => apagar("SIGINT")
+);
+
+process.on(
+    "SIGTERM",
+    () => apagar("SIGTERM")
+);
+
+/* =========================
+   TOKEN
+========================= */
+
+if (!process.env.DISCORD_TOKEN) {
+    console.error(
+        "❌ DISCORD_TOKEN no está configurado en .env"
+    );
+
+    process.exit(1);
+}
+
+/* =========================
    LOGIN
-   ========================================================= */
+========================= */
 
 client.login(
-    TOKEN
+    process.env.DISCORD_TOKEN
 );
