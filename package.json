@@ -1,19 +1,46 @@
-{
-  "name": "milo-ai",
-  "version": "2.0.0",
-  "description": "Milo - Bot de IA para Discord con Groq y generación de imágenes",
-  "main": "index.js",
-  "scripts": {
-    "start": "node index.js"
-  },
-  "engines": {
-    "node": ">=20.0.0"
-  },
-  "dependencies": {
-    "discord.js": "^14.24.2",
-    "dotenv": "^16.6.1",
-    "mathjs": "^14.0.1",
-    "groq-sdk": "latest",
-    "@huggingface/inference": "latest"
-  }
-}
+# ==============================
+# MILO IA
+# ==============================
+
+DISCORD_TOKEN=
+CLIENT_ID=
+
+# ==============================
+# GROQ
+# ==============================
+
+GROQ_API_KEY=
+GROQ_MODEL=
+
+# ==============================
+# IMÁGENES
+# ==============================
+
+IMAGE_API_KEY=
+IMAGE_MODEL=
+
+# ==============================
+# WEB + DISCORD LOGIN
+# ==============================
+
+WEB_PORT=3000
+DISCORD_CLIENT_SECRET=
+DISCORD_REDIRECT_URI=
+
+# ==============================
+# LOGS GLOBALES
+# ==============================
+
+GLOBAL_LOG_CHANNEL_ID=1553774365504569464
+
+# ==============================
+# NOTIFICACIONES
+# ==============================
+
+NOTIFICATION_CHANNEL_ID=1553527162336841759
+
+# ==============================
+# PREMIUM
+# ==============================
+
+PREMIUM_OWNER_ID=1553151134754152560
